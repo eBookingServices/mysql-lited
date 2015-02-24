@@ -4,6 +4,7 @@
     "description": "Lightweight native MySQL protocol implementation",
     "copyright": "Copyright © 2015, Marcio Martins",
     "authors": [ "Márcio Martins" ],
+	"license": "MIT License",
     "targetType": "library",
     "targetName": "mysql-lited",
     "dependencies": {
