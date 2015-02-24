@@ -1,0 +1,12 @@
+{
+    "name": "mysqld-lited",
+    "version": "0.1.0",
+    "description": "Lightweight native MySQL protocol implementation",
+    "copyright": "Copyright © 2015, Marcio Martins",
+    "authors": [ "Márcio Martins" ],
+    "targetType": "library",
+    "targetName": "mysql-lited",
+    "dependencies": {
+        "vibe-d": "0.7.22",
+    }
+}
