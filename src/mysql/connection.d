@@ -479,7 +479,7 @@ private:
         }
     }
 
-    auto columnDefs(uint count, Commands cmd) {
+    auto columnDefs(size_t count, Commands cmd) {
         header_.length = count;
         foreach (i; 0..count)
             columnDef(retrieve(), cmd, header_[i]);

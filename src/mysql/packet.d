@@ -167,16 +167,18 @@ struct OutputPacket {
     }
 
     void finalize(ubyte seq) {
-        uint length = offset_;
-        uint header = (offset_ & 0xffffff) | (seq << 24);
+        if (offset_ >=  0xffffff)
+            throw new MySQLConnectionException("Packet size exceeds 2^24");
+        uint length = cast(uint)offset_;
+        uint header = cast(uint)((offset_ & 0xffffff) | (seq << 24));
         *(cast(uint*)buffer_.ptr) = header;
     }
 
     void finalize(ubyte seq, size_t extra) {
-        uint length = offset_ + extra;
-        if (length >=  0xffffff)
+        if (offset_ + extra >= 0xffffff)
             throw new MySQLConnectionException("Packet size exceeds 2^24");
-        uint header = (length & 0xffffff) | (seq << 24);
+        uint length = cast(uint)(offset_ + extra);
+        uint header = cast(uint)((length & 0xffffff) | (seq << 24));
         *(cast(uint*)buffer_.ptr) = header;
     }
 
