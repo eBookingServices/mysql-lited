@@ -34,6 +34,6 @@ conn.execute("select * from manytypes where id > ?", 13, (size_t index /*optiona
 - fix a few remaining allocations
 - add proper unit tests
 - implement COM_STMT_SEND_LONG_DATA, and a single parameter binding interface
+- make vibe-d dependency optional
 - optional higher-level interfaces (i.e. serialize row into struct or associative array)
 - optional throttled batch inserter
-
