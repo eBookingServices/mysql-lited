@@ -1,5 +1,5 @@
 {
-    "name": "mysqld-lited",
+    "name": "mysql-lited",
     "version": "0.1.0",
     "description": "Lightweight native MySQL protocol implementation",
     "copyright": "Copyright © 2015, Marcio Martins",
