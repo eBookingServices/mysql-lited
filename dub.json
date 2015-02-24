@@ -8,6 +8,6 @@
     "targetType": "library",
     "targetName": "mysql-lited",
     "dependencies": {
-        "vibe-d": "0.7.22",
+        "vibe-d": ">=0.7.22",
     }
 }
