@@ -19,6 +19,54 @@ struct MySQLValue {
             buffer_[0..size] = (cast(ubyte*)ptr)[0..size];
     }
 
+    string toString() const {
+        import std.conv;
+
+        final switch(type_) {
+            case ColumnTypes.MYSQL_TYPE_NULL:
+                return "null";
+            case ColumnTypes.MYSQL_TYPE_TINY:
+                return to!string(*cast(ubyte*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_YEAR:
+            case ColumnTypes.MYSQL_TYPE_SHORT:
+                return to!string(*cast(ushort*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_INT24:
+            case ColumnTypes.MYSQL_TYPE_LONG:
+                return to!string(*cast(uint*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_LONGLONG:
+                return to!string(*cast(ulong*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_FLOAT:
+                return to!string(*cast(float*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_DOUBLE:
+                return to!string(*cast(double*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_SET:
+            case ColumnTypes.MYSQL_TYPE_ENUM:
+            case ColumnTypes.MYSQL_TYPE_VARCHAR:
+            case ColumnTypes.MYSQL_TYPE_VAR_STRING:
+            case ColumnTypes.MYSQL_TYPE_STRING:
+            case ColumnTypes.MYSQL_TYPE_NEWDECIMAL:
+            case ColumnTypes.MYSQL_TYPE_DECIMAL:
+                return to!string(*cast(immutable const(char)[]*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_BIT:
+            case ColumnTypes.MYSQL_TYPE_TINY_BLOB:
+            case ColumnTypes.MYSQL_TYPE_MEDIUM_BLOB:
+            case ColumnTypes.MYSQL_TYPE_LONG_BLOB:
+            case ColumnTypes.MYSQL_TYPE_BLOB:
+            case ColumnTypes.MYSQL_TYPE_GEOMETRY:
+                return to!string(*cast(ubyte[]*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_TIME:
+            case ColumnTypes.MYSQL_TYPE_TIME2:
+                return (*cast(MySQLTime*)buffer_.ptr).toDuration().toString();
+            case ColumnTypes.MYSQL_TYPE_DATE:
+            case ColumnTypes.MYSQL_TYPE_NEWDATE:
+            case ColumnTypes.MYSQL_TYPE_DATETIME:
+            case ColumnTypes.MYSQL_TYPE_DATETIME2:
+            case ColumnTypes.MYSQL_TYPE_TIMESTAMP:
+            case ColumnTypes.MYSQL_TYPE_TIMESTAMP2:
+                return (*cast(MySQLDateTime*)buffer_.ptr).to!DateTime().toString();
+        }
+    }
+
     T get(T)() const if (isScalarType!T) {
         final switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
