@@ -138,6 +138,37 @@ struct Connection(SocketType) {
         close(id);
     }
 
+    void begin() {
+        if (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS)
+            throw new MySQLErrorException("MySQL does not support nested transactions - commit or rollback before starting a new transaction");
+
+        query("start transaction");
+
+        assert(status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS);
+    }
+
+    void commit() {
+        if (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS)
+            throw new MySQLErrorException("No active transaction");
+
+        query("commit");
+
+        assert((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0);
+    }
+
+    void rollback() {
+        if (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS)
+            throw new MySQLErrorException("No active transaction");
+
+        query("rollback");
+
+        assert((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0);
+    }
+
+    bool inTransaction() const {
+        return (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS);
+    }
+
     void execute(Args...)(PreparedStatement stmt, Args args) {
         ensureConnected();
 
@@ -198,6 +229,14 @@ struct Connection(SocketType) {
                 discardAll(answer, Commands.COM_STMT_EXECUTE);
             }
         }
+    }
+
+    void query(const(char)[] sql) {
+        send(Commands.COM_QUERY, sql);
+
+        auto answer = retrieve();
+        if (isStatus(answer))
+            status(answer);
     }
 
     void close(PreparedStatement stmt) {
@@ -682,7 +721,7 @@ private:
     ubyte[] in_;
     ubyte[] out_;
     ubyte seq_ = 0;
- 
+
     ConnectionStatus status_;
     ConnectionSettings settings_;
     ServerInfo server_;
