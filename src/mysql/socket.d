@@ -1,5 +1,4 @@
-module mysql.vibe;
-
+module mysql.socket;
 
 import vibe.core.net;
 

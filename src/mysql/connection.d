@@ -5,10 +5,9 @@ import std.functional;
 import std.string;
 import std.traits;
 
-
-import mysql.exception;
+public import mysql.exception;
 import mysql.packet;
-import mysql.protocol;
+public import mysql.protocol;
 public import mysql.type;
 
 

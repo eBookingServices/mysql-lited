@@ -1,6 +1,6 @@
 {
     "name": "mysql-lited",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Lightweight native MySQL protocol implementation",
     "copyright": "Copyright © 2015, Marcio Martins",
     "authors": [ "Márcio Martins" ],
