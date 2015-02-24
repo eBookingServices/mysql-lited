@@ -504,7 +504,7 @@ private:
         assert(packet.empty);
     }
 
-    bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if (ParameterTypeTuple!(RowHandler).length == 1) {
+    bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 1) && is(ParameterTypeTuple!(RowHandler)[0] == MySQLRow)) {
         static if (is(ReturnType!(RowHandler) == void)) {
             handler(row);
             return true;
@@ -513,16 +513,25 @@ private:
         }
     }
 
-    bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if (ParameterTypeTuple!(RowHandler).length == 2) {
+    bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 2) && isNumeric!(ParameterTypeTuple!(RowHandler)[0]) && is(ParameterTypeTuple!(RowHandler)[1] == MySQLRow)) {
         static if (is(ReturnType!(RowHandler) == void)) {
-            handler(i, row);
+            handler(cast(ParameterTypeTuple!(RowHandler)[0])i, row);
             return true;
         } else {
-            return handler(i, row); // return type must be bool
+            return handler(cast(ParameterTypeTuple!(RowHandler)[0])i, row); // return type must be bool
         }
     }
 
-    bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if (ParameterTypeTuple!(RowHandler).length == 3) {
+    bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 2) && is(ParameterTypeTuple!(RowHandler)[0] == MySQLHeader) && is(ParameterTypeTuple!(RowHandler)[1] == MySQLRow)) {
+        static if (is(ReturnType!(RowHandler) == void)) {
+            handler(header, row);
+            return true;
+        } else {
+            return handler(header, row); // return type must be bool
+        }
+    }
+
+    bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 3) && isNumeric!(ParameterTypeTuple!(RowHandler)[0]) && is(ParameterTypeTuple!(RowHandler)[1] == MySQLHeader) && is(ParameterTypeTuple!(RowHandler)[2] == MySQLRow)) {
         static if (is(ReturnType!(RowHandler) == void)) {
             handler(i, header, row);
             return true;
