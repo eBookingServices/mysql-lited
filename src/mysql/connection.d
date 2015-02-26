@@ -285,7 +285,7 @@ private:
     }
 
     void send(Commands cmd, ubyte* data = null, size_t length = 0) {
-        if(!socket_.connected) {
+        if(!socket_.connected)
             connect();
 
         seq_ = 0;
