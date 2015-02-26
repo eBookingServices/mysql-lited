@@ -535,9 +535,9 @@ private:
             const auto bit = (i + 2) & 7;
 
             if ((nulls[index] & (1 << bit)) == 0) {
-                row[i] = eatValue(packet, column);
+                row.set(i, eatValue(packet, column));
             } else {
-                row[i].nullify();
+                row.nullify(i);
             }
         }
         assert(packet.empty);
@@ -583,6 +583,7 @@ private:
         auto columns = cast(size_t)packet.eatLenEnc();
         auto header = columnDefs(columns, cmd);
         row_.length = columns;
+        row_.header(header);
 
         size_t index = 0;
         auto statusFlags = skipEOF(retrieve());

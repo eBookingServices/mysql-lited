@@ -46,7 +46,7 @@ struct MySQLValue {
             case ColumnTypes.MYSQL_TYPE_STRING:
             case ColumnTypes.MYSQL_TYPE_NEWDECIMAL:
             case ColumnTypes.MYSQL_TYPE_DECIMAL:
-                return to!string(*cast(immutable const(char)[]*)buffer_.ptr);
+                return to!string(*cast(const(char)[]*)buffer_.ptr);
             case ColumnTypes.MYSQL_TYPE_BIT:
             case ColumnTypes.MYSQL_TYPE_TINY_BLOB:
             case ColumnTypes.MYSQL_TYPE_MEDIUM_BLOB:
@@ -67,8 +67,8 @@ struct MySQLValue {
         }
     }
 
-    T get(T)() const if (isScalarType!T) {
-        final switch(type_) {
+    const T get(T)() const if (isScalarType!T) {
+        switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to scalar");
             case ColumnTypes.MYSQL_TYPE_TINY:
@@ -85,73 +85,15 @@ struct MySQLValue {
                 return cast(T)(*cast(float*)buffer_.ptr);
             case ColumnTypes.MYSQL_TYPE_DOUBLE:
                 return cast(T)(*cast(double*)buffer_.ptr);
-            case ColumnTypes.MYSQL_TYPE_SET:
-            case ColumnTypes.MYSQL_TYPE_ENUM:
-            case ColumnTypes.MYSQL_TYPE_VARCHAR:
-            case ColumnTypes.MYSQL_TYPE_VAR_STRING:
-            case ColumnTypes.MYSQL_TYPE_STRING:
-            case ColumnTypes.MYSQL_TYPE_NEWDECIMAL:
-            case ColumnTypes.MYSQL_TYPE_DECIMAL:
-                break;
-            case ColumnTypes.MYSQL_TYPE_BIT:
-            case ColumnTypes.MYSQL_TYPE_TINY_BLOB:
-            case ColumnTypes.MYSQL_TYPE_MEDIUM_BLOB:
-            case ColumnTypes.MYSQL_TYPE_LONG_BLOB:
-            case ColumnTypes.MYSQL_TYPE_BLOB:
-            case ColumnTypes.MYSQL_TYPE_GEOMETRY:
-                break;
-            case ColumnTypes.MYSQL_TYPE_TIME:
-            case ColumnTypes.MYSQL_TYPE_TIME2:
-                break;
-            case ColumnTypes.MYSQL_TYPE_DATE:
-            case ColumnTypes.MYSQL_TYPE_NEWDATE:
-            case ColumnTypes.MYSQL_TYPE_DATETIME:
-            case ColumnTypes.MYSQL_TYPE_DATETIME2:
-            case ColumnTypes.MYSQL_TYPE_TIMESTAMP:
-            case ColumnTypes.MYSQL_TYPE_TIMESTAMP2:
-                break;
+            default:
+                throw new MySQLErrorException("Cannot convert MySQL value to scalar");
         }
-
-        throw new MySQLErrorException("Cannot convert MySQL value to scalar");
     }
 
-    T get(T)() const if (is(T == SysTime) || is(T == DateTime) ||  is(T == Date) || is(T == TimeOfDay)) {
-        final switch(type_) {
+    const T get(T)() const if (is(T == SysTime) || is(T == DateTime) ||  is(T == Date) || is(T == TimeOfDay)) {
+        switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to timestamp");
-            case ColumnTypes.MYSQL_TYPE_TINY:
-                break;
-            case ColumnTypes.MYSQL_TYPE_YEAR:
-                break;
-            case ColumnTypes.MYSQL_TYPE_SHORT:
-                break;
-            case ColumnTypes.MYSQL_TYPE_INT24:
-            case ColumnTypes.MYSQL_TYPE_LONG:
-                break;
-            case ColumnTypes.MYSQL_TYPE_LONGLONG:
-                break;
-            case ColumnTypes.MYSQL_TYPE_FLOAT:
-                break;
-            case ColumnTypes.MYSQL_TYPE_DOUBLE:
-                break;
-            case ColumnTypes.MYSQL_TYPE_SET:
-            case ColumnTypes.MYSQL_TYPE_ENUM:
-            case ColumnTypes.MYSQL_TYPE_VARCHAR:
-            case ColumnTypes.MYSQL_TYPE_VAR_STRING:
-            case ColumnTypes.MYSQL_TYPE_STRING:
-            case ColumnTypes.MYSQL_TYPE_NEWDECIMAL:
-            case ColumnTypes.MYSQL_TYPE_DECIMAL:
-                break;
-            case ColumnTypes.MYSQL_TYPE_BIT:
-            case ColumnTypes.MYSQL_TYPE_TINY_BLOB:
-            case ColumnTypes.MYSQL_TYPE_MEDIUM_BLOB:
-            case ColumnTypes.MYSQL_TYPE_LONG_BLOB:
-            case ColumnTypes.MYSQL_TYPE_BLOB:
-            case ColumnTypes.MYSQL_TYPE_GEOMETRY:
-                break;
-            case ColumnTypes.MYSQL_TYPE_TIME:
-            case ColumnTypes.MYSQL_TYPE_TIME2:
-                break;
             case ColumnTypes.MYSQL_TYPE_DATE:
             case ColumnTypes.MYSQL_TYPE_NEWDATE:
             case ColumnTypes.MYSQL_TYPE_DATETIME:
@@ -159,79 +101,27 @@ struct MySQLValue {
             case ColumnTypes.MYSQL_TYPE_TIMESTAMP:
             case ColumnTypes.MYSQL_TYPE_TIMESTAMP2:
                 return (*cast(MySQLDateTime*)buffer_.ptr).to!T;
+            default:
+                throw new MySQLErrorException("Cannot convert MySQL value to timestamp");
         }
-
-        throw new MySQLErrorException("Cannot convert MySQL value to timestamp");
     }
 
-    T get(T)() const if (is(T == Duration)) {
-        final switch(type_) {
+    const T get(T)() const if (is(T == Duration)) {
+        switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to time");
-            case ColumnTypes.MYSQL_TYPE_TINY:
-                break;
-            case ColumnTypes.MYSQL_TYPE_YEAR:
-                break;
-            case ColumnTypes.MYSQL_TYPE_SHORT:
-                break;
-            case ColumnTypes.MYSQL_TYPE_INT24:
-            case ColumnTypes.MYSQL_TYPE_LONG:
-                break;
-            case ColumnTypes.MYSQL_TYPE_LONGLONG:
-                break;
-            case ColumnTypes.MYSQL_TYPE_FLOAT:
-                break;
-            case ColumnTypes.MYSQL_TYPE_DOUBLE:
-                break;
-            case ColumnTypes.MYSQL_TYPE_SET:
-            case ColumnTypes.MYSQL_TYPE_ENUM:
-            case ColumnTypes.MYSQL_TYPE_VARCHAR:
-            case ColumnTypes.MYSQL_TYPE_VAR_STRING:
-            case ColumnTypes.MYSQL_TYPE_STRING:
-            case ColumnTypes.MYSQL_TYPE_NEWDECIMAL:
-            case ColumnTypes.MYSQL_TYPE_DECIMAL:
-                break;
-            case ColumnTypes.MYSQL_TYPE_BIT:
-            case ColumnTypes.MYSQL_TYPE_TINY_BLOB:
-            case ColumnTypes.MYSQL_TYPE_MEDIUM_BLOB:
-            case ColumnTypes.MYSQL_TYPE_LONG_BLOB:
-            case ColumnTypes.MYSQL_TYPE_BLOB:
-            case ColumnTypes.MYSQL_TYPE_GEOMETRY:
-                break;
             case ColumnTypes.MYSQL_TYPE_TIME:
             case ColumnTypes.MYSQL_TYPE_TIME2:
                 return (*cast(MySQLTime*)buffer_.ptr).toDuration;
-            case ColumnTypes.MYSQL_TYPE_DATE:
-            case ColumnTypes.MYSQL_TYPE_NEWDATE:
-            case ColumnTypes.MYSQL_TYPE_DATETIME:
-            case ColumnTypes.MYSQL_TYPE_DATETIME2:
-            case ColumnTypes.MYSQL_TYPE_TIMESTAMP:
-            case ColumnTypes.MYSQL_TYPE_TIMESTAMP2:
-                break;
+            default:
+                throw new MySQLErrorException("Cannot convert MySQL value to time");
         }
-
-        throw new MySQLErrorException("Cannot convert MySQL value to time");
     }
 
-    T get(T)() const if (isArray!T) {
-        final switch(type_) {
+    const T get(T)() const if (isArray!T) {
+        switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to array");
-            case ColumnTypes.MYSQL_TYPE_TINY:
-                break;
-            case ColumnTypes.MYSQL_TYPE_YEAR:
-                break;
-            case ColumnTypes.MYSQL_TYPE_SHORT:
-                break;
-            case ColumnTypes.MYSQL_TYPE_INT24:
-            case ColumnTypes.MYSQL_TYPE_LONG:
-                break;
-            case ColumnTypes.MYSQL_TYPE_LONGLONG:
-                break;
-            case ColumnTypes.MYSQL_TYPE_FLOAT:
-                break;
-            case ColumnTypes.MYSQL_TYPE_DOUBLE:
-                break;
             case ColumnTypes.MYSQL_TYPE_SET:
             case ColumnTypes.MYSQL_TYPE_ENUM:
             case ColumnTypes.MYSQL_TYPE_VARCHAR:
@@ -239,27 +129,53 @@ struct MySQLValue {
             case ColumnTypes.MYSQL_TYPE_STRING:
             case ColumnTypes.MYSQL_TYPE_NEWDECIMAL:
             case ColumnTypes.MYSQL_TYPE_DECIMAL:
-                return *cast(T*)buffer_.ptr;
+                return (*cast(T*)buffer_.ptr).dup;
             case ColumnTypes.MYSQL_TYPE_BIT:
             case ColumnTypes.MYSQL_TYPE_TINY_BLOB:
             case ColumnTypes.MYSQL_TYPE_MEDIUM_BLOB:
             case ColumnTypes.MYSQL_TYPE_LONG_BLOB:
             case ColumnTypes.MYSQL_TYPE_BLOB:
             case ColumnTypes.MYSQL_TYPE_GEOMETRY:
-                return *cast(T*)buffer_.ptr;
-            case ColumnTypes.MYSQL_TYPE_TIME:
-            case ColumnTypes.MYSQL_TYPE_TIME2:
-                break;
-            case ColumnTypes.MYSQL_TYPE_DATE:
-            case ColumnTypes.MYSQL_TYPE_NEWDATE:
-            case ColumnTypes.MYSQL_TYPE_DATETIME:
-            case ColumnTypes.MYSQL_TYPE_DATETIME2:
-            case ColumnTypes.MYSQL_TYPE_TIMESTAMP:
-            case ColumnTypes.MYSQL_TYPE_TIMESTAMP2:
-                break;
+                return (*cast(T*)buffer_.ptr).dup;
+            default:
+                throw new MySQLErrorException("Cannot convert MySQL value to array");
         }
+    }
 
-        throw new MySQLErrorException("Cannot convert MySQL value to array");
+    const T peek(T)() const if (isScalarType!T) {
+        return get!T;
+    }
+
+    const T peek(T)() const if (is(T == SysTime) || is(T == DateTime) ||  is(T == Date) || is(T == TimeOfDay)) {
+        return get!T;
+    }
+
+    const T peek(T)() const if (is(T == Duration)) {
+        return get!T;
+    }
+
+    const T peek(T)() const if (isArray!T) {
+        switch(type_) {
+            case ColumnTypes.MYSQL_TYPE_NULL:
+                throw new MySQLErrorException("Cannot convert NULL to array");
+            case ColumnTypes.MYSQL_TYPE_SET:
+            case ColumnTypes.MYSQL_TYPE_ENUM:
+            case ColumnTypes.MYSQL_TYPE_VARCHAR:
+            case ColumnTypes.MYSQL_TYPE_VAR_STRING:
+            case ColumnTypes.MYSQL_TYPE_STRING:
+            case ColumnTypes.MYSQL_TYPE_NEWDECIMAL:
+            case ColumnTypes.MYSQL_TYPE_DECIMAL:
+                return (*cast(T*)buffer_.ptr);
+            case ColumnTypes.MYSQL_TYPE_BIT:
+            case ColumnTypes.MYSQL_TYPE_TINY_BLOB:
+            case ColumnTypes.MYSQL_TYPE_MEDIUM_BLOB:
+            case ColumnTypes.MYSQL_TYPE_LONG_BLOB:
+            case ColumnTypes.MYSQL_TYPE_BLOB:
+            case ColumnTypes.MYSQL_TYPE_GEOMETRY:
+                return (*cast(T*)buffer_.ptr);
+            default:
+                throw new MySQLErrorException("Cannot convert MySQL value to array");
+        }
     }
 
     bool isNull() const {
@@ -290,8 +206,52 @@ struct MySQLColumn {
 
 
 alias MySQLHeader = MySQLColumn[];
-alias MySQLRow = MySQLValue[];
 
+struct MySQLRow {
+    package void header(MySQLHeader header) {
+        index_ = null;
+        foreach (index, column; header)
+            index_[column.name] = index;
+    }
+
+    package void set(size_t index, MySQLValue x) {
+        values_[index] = x;
+    }
+
+    package void nullify(size_t index) {
+        values_[index].nullify();
+    }
+
+    @property length() const {
+        return values_.length;
+    }
+
+    @property length(size_t x) {
+        values_.length = x;
+    }
+
+    const inout(MySQLValue) opIndex(string key) inout {
+        if (auto pindex = key in index_)
+            return values_[*pindex];
+        throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
+    }
+
+    const inout(MySQLValue) opIndex(size_t index) inout {
+        return values_[index];
+    }
+
+    @property const inout(MySQLValue) opDispatch(string key)() inout {
+        return opIndex(key);
+    }
+
+    string toString() {
+        import std.conv;
+        return to!string(values_);
+    }
+private:
+    MySQLValue[] values_;
+    size_t[string] index_;
+}
 
 struct MySQLTime {
     uint days;
