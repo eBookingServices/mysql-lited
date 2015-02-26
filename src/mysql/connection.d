@@ -7,7 +7,7 @@ import std.traits;
 
 public import mysql.exception;
 import mysql.packet;
-public import mysql.protocol;
+import mysql.protocol;
 public import mysql.type;
 
 

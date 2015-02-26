@@ -8,6 +8,7 @@ import std.traits;
 import mysql.protocol;
 import mysql.packet;
 import mysql.exception;
+public import mysql.row;
 
 
 struct MySQLValue {
@@ -207,51 +208,6 @@ struct MySQLColumn {
 
 alias MySQLHeader = MySQLColumn[];
 
-struct MySQLRow {
-    package void header(MySQLHeader header) {
-        index_ = null;
-        foreach (index, column; header)
-            index_[column.name] = index;
-    }
-
-    package void set(size_t index, MySQLValue x) {
-        values_[index] = x;
-    }
-
-    package void nullify(size_t index) {
-        values_[index].nullify();
-    }
-
-    @property length() const {
-        return values_.length;
-    }
-
-    @property length(size_t x) {
-        values_.length = x;
-    }
-
-    const inout(MySQLValue) opIndex(string key) inout {
-        if (auto pindex = key in index_)
-            return values_[*pindex];
-        throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
-    }
-
-    const inout(MySQLValue) opIndex(size_t index) inout {
-        return values_[index];
-    }
-
-    @property const inout(MySQLValue) opDispatch(string key)() inout {
-        return opIndex(key);
-    }
-
-    string toString() {
-        import std.conv;
-        return to!string(values_);
-    }
-private:
-    MySQLValue[] values_;
-    size_t[string] index_;
-}
 
 struct MySQLTime {
     uint days;
