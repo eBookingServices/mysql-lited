@@ -42,7 +42,7 @@ struct MySQLRow {
         T result;
         static if (isTuple!(Unqual!T)) {
             foreach(i, ref f; result.field)
-                f = row[i].get!(Unqual!(typeof(f)));
+                f = this[i].get!(Unqual!(typeof(f)));
         } else {
             foreach(member; __traits(allMembers, T)) {
                 static if (isPublicDataMember!(T, member)) {
