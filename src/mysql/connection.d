@@ -287,10 +287,8 @@ private:
     void send(Commands cmd, ubyte* data = null, size_t length = 0) {
         if(!socket_.connected) {
             connect();
-        } else {
-            seq_ = 0;
-        }
 
+        seq_ = 0;
         auto header = OutputPacket(&out_);
         header.put!ubyte(cmd);
         header.finalize(seq_, length);
