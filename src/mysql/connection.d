@@ -1,5 +1,7 @@
 module mysql.connection;
 
+
+import std.algorithm;
 import std.array;
 import std.functional;
 import std.string;
@@ -470,7 +472,8 @@ private:
                     packet.skip(1);
                 }
             } else if (!packet.empty) {
-                info(packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc()));
+                auto len = cast(size_t)packet.eatLenEnc();
+                info(packet.eat!(const(char)[])(min(len, packet.remaining)));
             }
             break;
         case StatusPackets.EOF_Packet:
