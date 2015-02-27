@@ -8,11 +8,17 @@ import mysql.exception;
 import mysql.type;
 
 
-template isPublicDataMember(T, string Member) {
-    static if (!__traits(compiles, typeof(__traits(getMember, T, Member)))) {
-		enum isPublicDataMember = false;
+template isWritableDataMember(T, string Member) {
+    static if (!is(typeof(__traits(getMember, T, Member)))) {
+		enum isWritableDataMember = false;
+    } static if (is(typeof(__traits(getMember, T, Member)) == void)) {
+        enum isWritableDataMember = false;
+    } else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))) {
+        enum isWritableDataMember = false;
+    } else static if (!__traits(compiles, (){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }())) {
+        enum isWritableDataMember = false;
     } else {
-        enum isPublicDataMember = !isSomeFunction!(typeof(__traits(getMember, T, Member)));
+        enum isWritableDataMember = true;
     }
 }
 
@@ -45,7 +51,7 @@ struct MySQLRow {
                 f = this[i].get!(Unqual!(typeof(f)));
         } else {
             foreach(member; __traits(allMembers, T)) {
-                static if (isPublicDataMember!(T, member)) {
+                static if (isWritableDataMember!(T, member)) {
                     static if (strict == Strict.yes) {
                         __traits(getMember, result, member) = this[member].get!(Unqual!(typeof(__traits(getMember, result, member))));
                     } else {
