@@ -152,7 +152,7 @@ struct Connection(SocketType) {
     }
 
     void commit() {
-        if (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS)
+        if ((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0)
             throw new MySQLErrorException("No active transaction");
 
         query("commit");
@@ -161,7 +161,7 @@ struct Connection(SocketType) {
     }
 
     void rollback() {
-        if (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS)
+        if ((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0)
             throw new MySQLErrorException("No active transaction");
 
         query("rollback");
