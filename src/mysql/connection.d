@@ -135,6 +135,8 @@ struct Connection(SocketType) {
     }
 
     void execute(Args...)(const(char)[] stmt, Args args) {
+        scope(failure) disconnect();
+
         auto id = prepare(stmt);
         execute(id, args);
         close(id);
@@ -172,6 +174,8 @@ struct Connection(SocketType) {
     }
 
     void execute(Args...)(PreparedStatement stmt, Args args) {
+        scope(failure) disconnect();
+
         ensureConnected();
 
         seq_ = 0;

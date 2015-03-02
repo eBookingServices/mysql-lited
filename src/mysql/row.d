@@ -9,9 +9,13 @@ import mysql.type;
 
 
 template isWritableDataMember(T, string Member) {
-    static if (!is(typeof(__traits(getMember, T, Member)))) {
+	static if (is(TypeTuple!(__traits(getMember, T, Member)))) {
+        enum isWritableDataMember = false;
+    } else static if ((__traits(getProtection, __traits(getMember, T, Member)) != "public") && (__traits(getProtection, __traits(getMember, T, Member)) != "export")) {
+        enum isWritableDataMember = false;
+    } else static if (!is(typeof(__traits(getMember, T, Member)))) {
 		enum isWritableDataMember = false;
-    } static if (is(typeof(__traits(getMember, T, Member)) == void)) {
+    } else static if (is(typeof(__traits(getMember, T, Member)) == void)) {
         enum isWritableDataMember = false;
     } else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))) {
         enum isWritableDataMember = false;
@@ -44,26 +48,24 @@ struct MySQLRow {
         values_[index].nullify();
     }
 
-    T structured(T, Strict strict = Strict.yes)() if(is(Unqual!T == struct)) {
-        T result;
+    void structure(T, Strict strict = Strict.yes)(ref T x) if(is(Unqual!T == struct)) {
         static if (isTuple!(Unqual!T)) {
-            foreach(i, ref f; result.field)
-                f = this[i].get!(Unqual!(typeof(f)));
-        } else {
-            foreach(member; __traits(allMembers, T)) {
-                static if (isWritableDataMember!(T, member)) {
-                    static if (strict == Strict.yes) {
-                        __traits(getMember, result, member) = this[member].get!(Unqual!(typeof(__traits(getMember, result, member))));
-                    } else {
-                        auto pvalue = member in this;
-                        if (pvalue && !pvalue.isNull) {
-                            __traits(getMember, result, member) = this[member].get!(Unqual!(typeof(__traits(getMember, result, member))));
-                        }
-                    }
+            foreach(i, ref f; x.field) {
+                static if (strict == Strict.yes) {
+                    f = this[i].get!(Unqual!(typeof(f)));
+                } else {
+                    if (!this[i].isNull)
+                        f = this[i].get!(Unqual!(typeof(f)));
                 }
             }
+        } else {
+            structurize!(T, strict, null)(x);
         }
+    }
 
+    T structured(T, Strict strict = Strict.yes)() if (is(Unqual!T == struct)) {
+        T result;
+        structure!(T, strict)(result);
         return result;
     }
 
@@ -100,6 +102,28 @@ struct MySQLRow {
         return to!string(values_);
     }
 private:
+    void structurize(T, Strict strict = Strict.yes, string path = null)(ref T result) {
+        foreach(member; __traits(allMembers, T)) {
+            static if (isWritableDataMember!(T, member)) {
+                enum pathMember = path ~ member;
+                alias MemberType = typeof(__traits(getMember, result, member));
+
+                static if (is(Unqual!MemberType == struct)) {
+                    enum pathNew = pathMember ~ ".";
+                    structurize!(MemberType, strict, pathNew)(__traits(getMember, result, member));
+                } else {
+                    static if (strict == Strict.yes) {
+                        __traits(getMember, result, member) = this[pathMember].get!(Unqual!MemberType);
+                    } else {
+                        auto pvalue = pathMember in this;
+                        if (pvalue && !pvalue.isNull)
+                            __traits(getMember, result, member) = pvalue.get!(Unqual!MemberType);
+                    }
+                }
+            }
+        }
+    }
+
     MySQLValue[] values_;
     size_t[string] index_;
 }
