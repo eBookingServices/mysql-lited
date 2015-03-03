@@ -75,22 +75,22 @@ struct Connection(SocketType) {
 
     void use(const(char)[] db) {
         send(Commands.COM_INIT_DB, db);
-        status(retrieve());
+        eatStatus(retrieve());
     }
 
     void ping() {
         send(Commands.COM_PING);
-        status(retrieve());
+        eatStatus(retrieve());
     }
 
     void refresh() {
         send(Commands.COM_REFRESH);
-        status(retrieve());
+        eatStatus(retrieve());
     }
 
     void reset() {
         send(Commands.COM_RESET_CONNECTION);
-        status(retrieve());
+        eatStatus(retrieve());
     }
 
     const(char)[] statistics() {
@@ -161,16 +161,18 @@ struct Connection(SocketType) {
     }
 
     void rollback() {
-        if ((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0)
-            throw new MySQLErrorException("No active transaction");
+        if (connected) {
+            if ((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0)
+                throw new MySQLErrorException("No active transaction");
 
-        query("rollback");
+            query("rollback");
 
-        assert((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0);
+            assert((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0);
+        }
     }
 
-    bool inTransaction() const {
-        return (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS);
+    @property bool inTransaction() const {
+        return connected && (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS);
     }
 
     void execute(Args...)(PreparedStatement stmt, Args args) {
@@ -227,7 +229,7 @@ struct Connection(SocketType) {
         
         auto answer = retrieve();
         if (isStatus(answer)) {
-            status(answer);
+            eatStatus(answer);
         } else {
             static if (!shouldDiscard) {
                 resultSet(answer, stmt.id, Commands.COM_STMT_EXECUTE, args[args.length - 1]);
@@ -242,7 +244,7 @@ struct Connection(SocketType) {
 
         auto answer = retrieve();
         if (isStatus(answer))
-            status(answer);
+            eatStatus(answer);
     }
 
     void close(PreparedStatement stmt) {
@@ -250,24 +252,28 @@ struct Connection(SocketType) {
         send(Commands.COM_STMT_CLOSE, data);
     }
 
-    ulong insertID() {
+    @property ulong insertID() {
         return cast(size_t)status_.insertID;
     }
 
-    ulong affected() {
+    @property ulong affected() {
         return cast(size_t)status_.affected;
     }
 
-    size_t warnings() {
+    @property size_t warnings() {
         return status_.warnings;
     }
 
-    size_t error() {
+    @property size_t error() {
         return status_.error;
     }
 
-    const(char)[] status() {
+    @property const(char)[] status() const {
         return info_;
+    }
+
+    @property bool connected() const {
+        return socket_.connected;
     }
 
     void disconnect() {
@@ -283,7 +289,7 @@ private:
         socket_.connect(settings_.host, settings_.port);
 
         seq_ = 0;
-        handshake(retrieve());
+        eatHandshake(retrieve());
     }
 
     void send(T)(Commands cmd, T[] data) {
@@ -326,7 +332,7 @@ private:
         switch (id) {
             case StatusPackets.ERR_Packet:
             case StatusPackets.OK_Packet:
-                status(packet);
+                eatStatus(packet);
                 break;
             default:
                 break;
@@ -356,7 +362,7 @@ private:
         return InputPacket(&in_);
     }
 
-    void handshake(InputPacket packet) {
+    void eatHandshake(InputPacket packet) {
         scope(failure) disconnect();
 
         server_.protocol = packet.eat!ubyte;
@@ -453,10 +459,10 @@ private:
 
         socket_.write(reply.get());
 
-        status(retrieve());
+        eatStatus(retrieve());
     }
 
-    void status(InputPacket packet) {
+    void eatStatus(InputPacket packet) {
         auto id = packet.eat!ubyte;
 
         switch (id) {
@@ -491,7 +497,13 @@ private:
             packet.skip(6);
             info(packet.eat!(const(char)[])(packet.remaining));
 
-            throw new MySQLErrorException(cast(string)info_);
+            switch(status_.error) {
+            case ErrorCodes.ER_DUP_ENTRY_WITH_KEY_NAME:
+            case ErrorCodes.ER_DUP_ENTRY:
+                throw new MySQLDuplicateEntryException(cast(string)info_);
+            default:
+                throw new MySQLErrorException(cast(string)info_);
+            }
         default:
             throw new MySQLProtocolException("Unexpected packet format");
         }
@@ -621,7 +633,7 @@ private:
             auto row = retrieve();
             while (true) {
                 if (row.peek!ubyte == StatusPackets.EOF_Packet) {
-                    status(row);
+                    eatStatus(row);
                     break;
                 }
 
@@ -645,7 +657,7 @@ private:
             while (true) {
                 auto row = retrieve();
                 if (row.peek!ubyte == StatusPackets.EOF_Packet) {
-                    status(row);
+                    eatStatus(row);
                     break;
                 }
             }
@@ -654,12 +666,12 @@ private:
 
     void discardUntilEOF(InputPacket packet) {
         if (packet.peek!ubyte == StatusPackets.EOF_Packet) {
-            status(packet);
+            eatStatus(packet);
             return;
         } else {
             while (true) {
                 if (packet.peek!ubyte == StatusPackets.EOF_Packet) {
-                    status(packet);
+                    eatStatus(packet);
                     break;
                 }
                 packet = retrieve();

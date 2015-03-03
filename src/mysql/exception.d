@@ -1,7 +1,7 @@
 module mysql.exception;
 
 
-class MySQLException : Exception {
+class MySQLException : Throwable {
     this(string msg, string file = __FILE__, size_t line = __LINE__) pure {
         super(msg, file, line);
     }
@@ -19,7 +19,13 @@ class MySQLProtocolException: MySQLException {
     }
 }
 
-class MySQLErrorException : Exception {
+class MySQLErrorException : Throwable {
+    this(string msg, string file = __FILE__, size_t line = __LINE__) pure {
+        super(msg, file, line);
+    }
+}
+
+class MySQLDuplicateEntryException : MySQLErrorException {
     this(string msg, string file = __FILE__, size_t line = __LINE__) pure {
         super(msg, file, line);
     }

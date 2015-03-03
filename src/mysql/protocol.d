@@ -91,7 +91,7 @@ enum Commands : ubyte {
 }
 
 
-enum Cursors {
+enum Cursors : ubyte {
     CURSOR_TYPE_NO_CURSOR   = 0x00,
     CURSOR_TYPE_READ_ONLY   = 0x01,
     CURSOR_TYPE_FOR_UPDATE  = 0x02,
@@ -133,7 +133,7 @@ enum ColumnTypes : ubyte {
 }
 
 
-enum FieldFlags {
+enum FieldFlags : ushort {
     NOT_NULL_FLAG           = 0x0001, //  Field cannot be NULL
     PRI_KEY_FLAG	        = 0x0002, //  Field is part of a primary key
     UNIQUE_KEY_FLAG	        = 0x0004, //  Field is part of a unique key
@@ -150,4 +150,11 @@ enum FieldFlags {
     ON_UPDATE_NOW_FLAG      = 0x2000, // Field is set to NOW on UPDATE
 //    PART_KEY_FLAG           = 0x4000, //  Intern; Part of some key
     NUM_FLAG	            = 0x8000, //  Field is numeric
+}
+
+
+enum ErrorCodes : ushort {
+    ER_DUP_KEYNAME                  = 1061,
+    ER_DUP_ENTRY                    = 1062,
+    ER_DUP_ENTRY_WITH_KEY_NAME      = 1586,
 }
