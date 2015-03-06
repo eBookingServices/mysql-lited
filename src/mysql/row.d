@@ -1,6 +1,7 @@
 module mysql.row;
 
 
+import std.datetime;
 import std.traits;
 import std.typecons;
 
@@ -11,15 +12,15 @@ import mysql.type;
 template isWritableDataMember(T, string Member) {
 	static if (is(TypeTuple!(__traits(getMember, T, Member)))) {
         enum isWritableDataMember = false;
-    } else static if ((__traits(getProtection, __traits(getMember, T, Member)) != "public") && (__traits(getProtection, __traits(getMember, T, Member)) != "export")) {
-        enum isWritableDataMember = false;
     } else static if (!is(typeof(__traits(getMember, T, Member)))) {
 		enum isWritableDataMember = false;
     } else static if (is(typeof(__traits(getMember, T, Member)) == void)) {
         enum isWritableDataMember = false;
     } else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))) {
         enum isWritableDataMember = false;
-    } else static if (!__traits(compiles, (){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }())) {
+    } else static if (!is(typeof((){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }()))) {
+        enum isWritableDataMember = false;
+    } else static if ((__traits(getProtection, __traits(getMember, T, Member)) != "public") && (__traits(getProtection, __traits(getMember, T, Member)) != "export")) {
         enum isWritableDataMember = false;
     } else {
         enum isWritableDataMember = true;
@@ -97,9 +98,17 @@ struct MySQLRow {
         return opIndex(key);
     }
 
-    string toString() {
+    string toString() const {
         import std.conv;
         return to!string(values_);
+    }
+
+    string[] toStringArray() const {
+        string[] result;
+        result.reserve(values_.length);
+        foreach(ref value; values_)
+            result ~= value.toString;
+        return result;
     }
 private:
     void structurize(T, Strict strict = Strict.yes, string path = null)(ref T result) {
@@ -108,7 +117,7 @@ private:
                 enum pathMember = path ~ member;
                 alias MemberType = typeof(__traits(getMember, result, member));
 
-                static if (is(Unqual!MemberType == struct)) {
+                static if (is(Unqual!MemberType == struct) && !is(Unqual!MemberType == Date) && !is(Unqual!MemberType == DateTime) && !is(Unqual!MemberType == SysTime) && !is(Unqual!MemberType == Duration)) {
                     enum pathNew = pathMember ~ ".";
                     structurize!(MemberType, strict, pathNew)(__traits(getMember, result, member));
                 } else {
