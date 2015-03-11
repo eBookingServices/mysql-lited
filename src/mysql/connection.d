@@ -17,7 +17,7 @@ immutable CapabilityFlags DefaultClientCaps = CapabilityFlags.CLIENT_LONG_PASSWO
     CapabilityFlags.CLIENT_CONNECT_WITH_DB | CapabilityFlags.CLIENT_PROTOCOL_41 | CapabilityFlags.CLIENT_SECURE_CONNECTION;
 
 
-struct ConnectionSettings {
+private struct ConnectionSettings {
     CapabilityFlags caps = DefaultClientCaps;
 
     const(char)[] host;
@@ -28,7 +28,7 @@ struct ConnectionSettings {
 }
 
 
-struct ConnectionStatus {
+private struct ConnectionStatus {
     CapabilityFlags caps = cast(CapabilityFlags)0;
 
     ulong affected = 0;
@@ -39,7 +39,7 @@ struct ConnectionStatus {
 }
 
 
-struct ServerInfo {
+private struct ServerInfo {
     const(char)[] versionString;
     ubyte protocol;
     ubyte charSet;
@@ -195,22 +195,43 @@ struct Connection(SocketType) {
 
         enum argCount = shouldDiscard ? args.length : (args.length - 1);
 
-        if (argCount != stmt.params)
+        if (!argCount && stmt.params)
             throw new MySQLErrorException("Wrong number of parameters for query");
 
         static if (argCount) {
-            ubyte[1024] nulls;
-            foreach(i, arg; args) {
-                const auto index = i >> 3;
-                const auto bit = i & 7;
+            enum NullsCapacity = 128; // must be power of 2
+            ubyte[NullsCapacity >> 3] nulls;
+            size_t bitsOut = 0;
+            size_t indexArg = 0;
+            foreach(i, arg; args[0..argCount]) {
+                const auto index = (indexArg >> 3) & (NullsCapacity - 1);
+                const auto bit = indexArg & 7;
 
                 static if (is(typeof(arg) == typeof(null))) {
                     nulls[index] = nulls[index] | (1 << bit);
+                    ++indexArg;
+                } else static if (isArray!(typeof(arg)) && !isSomeString!(typeof(arg))) {
+                    indexArg += arg.length;
+                } else {
+                    ++indexArg;
+                }
+
+                if ((i == argCount - 1) || ((indexArg - bitsOut) >= NullsCapacity)) {
+                    while (true) {
+                        auto bits = min(indexArg - bitsOut, NullsCapacity);
+                        packet.put(nulls[0..(bits + 7) >> 3]);
+                        nulls[] = 0;
+                        bitsOut += bits;
+
+                        if ((indexArg - bitsOut) < NullsCapacity)
+                            break;
+                    }
                 }
             }
-
-            packet.put(nulls[0..((args.length + 7) >> 3)]);
             packet.put!ubyte(1);
+
+            if (indexArg != stmt.params)
+                throw new MySQLErrorException("Wrong number of parameters for query");
 
             foreach (arg; args[0..argCount])
                 putValueType(packet, arg);
@@ -237,14 +258,6 @@ struct Connection(SocketType) {
                 discardAll(answer, Commands.COM_STMT_EXECUTE);
             }
         }
-    }
-
-    void query(const(char)[] sql) {
-        send(Commands.COM_QUERY, sql);
-
-        auto answer = retrieve();
-        if (isStatus(answer))
-            eatStatus(answer);
     }
 
     void close(PreparedStatement stmt) {
@@ -309,6 +322,14 @@ private:
         socket_.write(header.get());
         if (length)
             socket_.write(data[0..length]);
+    }
+
+    void query(const(char)[] sql) {
+        send(Commands.COM_QUERY, sql);
+
+        auto answer = retrieve();
+        if (isStatus(answer))
+            eatStatus(answer);
     }
 
     void ensureConnected() {

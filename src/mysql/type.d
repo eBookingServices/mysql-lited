@@ -11,6 +11,23 @@ import mysql.exception;
 public import mysql.row;
 
 
+struct MySQLBinary {
+    this(T)(T[] data) {
+        data_ = (cast(ubyte*)data.ptr)[0..typeof(T.init[0]).sizeof * data.length];
+    }
+
+    @property size_t length() const {
+        return data_.length;
+    }
+
+    @property const(ubyte)[] data() const {
+        return data_;
+    }
+
+    private ubyte[] data_;
+}
+
+
 struct MySQLValue {
     package enum BufferSize = max(ulong.sizeof, (ulong[]).sizeof, MySQLDateTime.sizeof, MySQLTime.sizeof);
     package this(ColumnTypes type, void* ptr, size_t size) {
@@ -535,20 +552,34 @@ void putValue(T)(ref OutputPacket packet, T value) if (isIntegral!T || isBoolean
     }
 }
 
-void putValueType(T)(ref OutputPacket packet, T value) if (isArray!T) {
-    alias ValueType = Unqual!(typeof(T.init[0]));
-    static if (isSomeChar!ValueType) {
-        packet.put!ubyte(ColumnTypes.MYSQL_TYPE_STRING);
-    } else {
-        packet.put!ubyte(ColumnTypes.MYSQL_TYPE_BLOB);
-    }
+void putValueType(T)(ref OutputPacket packet, T value) if (isSomeString!T) {
+    packet.put!ubyte(ColumnTypes.MYSQL_TYPE_STRING);
     packet.put!ubyte(0x80);
 }
 
-void putValue(T)(ref OutputPacket packet, T value) if (isArray!T) {
-    alias ValueType = Unqual!(typeof(T.init[0]));
-
+void putValue(T)(ref OutputPacket packet, T value) if (isSomeString!T) {
     ulong size = value.length * ValueType.sizeof;
     packet.putLenEnc(size);
     packet.put(value);
+}
+
+void putValueType(T)(ref OutputPacket packet, T value) if (isArray!T && !isSomeString!T) {
+    foreach(ref item; value)
+        putValueType(packet, item);
+}
+
+void putValue(T)(ref OutputPacket packet, T value) if (isArray!T && !isSomeString!T) {
+    foreach(ref item; value)
+        putValue(packet, item);
+}
+
+void putValueType(T)(ref OutputPacket packet, T value) if (is(T == MySQLBinary)) {
+    packet.put!ubyte(ColumnTypes.MYSQL_TYPE_BLOB);
+    packet.put!ubyte(0x80);
+}
+
+void putValue(T)(ref OutputPacket packet, T value) if (is(T == MySQLBinary)) {
+    ulong size = value.length;
+    packet.putLenEnc(size);
+    packet.put(value.data);
 }
