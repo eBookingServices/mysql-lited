@@ -1,6 +1,7 @@
 module mysql.row;
 
 
+import std.algorithm;
 import std.datetime;
 import std.traits;
 import std.typecons;
@@ -37,8 +38,11 @@ enum Strict {
 struct MySQLRow {
     package void header(MySQLHeader header) {
         index_ = null;
-        foreach (index, column; header)
+        names_.length = header.length;
+        foreach (index, column; header) {
+            names_[index] = column.name;
             index_[column.name] = index;
+        }
     }
 
     package void set(size_t index, MySQLValue x) {
@@ -49,7 +53,78 @@ struct MySQLRow {
         values_[index].nullify();
     }
 
-    void structure(T, Strict strict = Strict.yes)(ref T x) if(is(Unqual!T == struct)) {
+    package @property length(size_t x) {
+        values_.length = x;
+    }
+
+    @property length() const {
+        return values_.length;
+    }
+
+    @property const(string)[] columns() const {
+        return names_;
+    }
+
+    @property MySQLValue opDispatch(string key)() const {
+        return opIndex(key);
+    }
+
+    MySQLValue opIndex(string key) const {
+        if (auto pindex = key in index_)
+            return values_[*pindex];
+        throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
+    }
+
+    MySQLValue opIndex(size_t index) const {
+        return values_[index];
+    }
+
+    const(MySQLValue)* opBinaryRight(string op)(string key) const if (op == "in") {
+        if (auto pindex = key in index_)
+            return &values_[*pindex];
+        return null;
+    }
+
+	int opApply(int delegate(const ref MySQLValue value) del) const {
+        foreach (ref v; values_)
+            if (auto ret = del(v))
+                return ret;
+        return 0;
+    }
+
+	int opApply(int delegate(ref size_t, const ref MySQLValue) del) const {
+        foreach (ref size_t i, ref v; values_)
+            if (auto ret = del(i, v))
+                return ret;
+        return 0;
+    }
+
+	int opApply(int delegate(const ref string, const ref MySQLValue) del) const {
+        foreach (size_t i, ref v; values_)
+            if (auto ret = del(names_[i], v))
+                return ret;
+        return 0;
+    }
+
+    string toString() const {
+        import std.conv;
+        return to!string(values_);
+    }
+
+    string[] toStringArray(size_t start = 0, size_t end = ~cast(size_t)0) const {
+        end = min(end, values_.length);
+        start = min(start, values_.length);
+        if (start > end)
+            swap(start, end);
+
+        string[] result;
+        result.reserve(end - start);
+        foreach(i; start..end)
+            result ~= values_[i].toString;
+        return result;
+    }
+
+    void toStruct(T, Strict strict = Strict.yes)(ref T x) if(is(Unqual!T == struct)) {
         static if (isTuple!(Unqual!T)) {
             foreach(i, ref f; x.field) {
                 static if (strict == Strict.yes) {
@@ -64,52 +139,12 @@ struct MySQLRow {
         }
     }
 
-    T structured(T, Strict strict = Strict.yes)() if (is(Unqual!T == struct)) {
+    T toStruct(T, Strict strict = Strict.yes)() if (is(Unqual!T == struct)) {
         T result;
-        structure!(T, strict)(result);
+        toStruct!(T, strict)(result);
         return result;
     }
 
-    @property length() const {
-        return values_.length;
-    }
-
-    @property length(size_t x) {
-        values_.length = x;
-    }
-
-    inout(MySQLValue)* opBinaryRight(string op)(string key) inout if (op == "in") {
-        if (auto pindex = key in index_)
-            return &values_[*pindex];
-        return null;
-    }
-
-    const inout(MySQLValue) opIndex(string key) inout {
-        if (auto pindex = key in index_)
-            return values_[*pindex];
-        throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
-    }
-
-    const inout(MySQLValue) opIndex(size_t index) inout {
-        return values_[index];
-    }
-
-    @property const inout(MySQLValue) opDispatch(string key)() inout {
-        return opIndex(key);
-    }
-
-    string toString() const {
-        import std.conv;
-        return to!string(values_);
-    }
-
-    string[] toStringArray() const {
-        string[] result;
-        result.reserve(values_.length);
-        foreach(ref value; values_)
-            result ~= value.toString;
-        return result;
-    }
 private:
     void structurize(T, Strict strict = Strict.yes, string path = null)(ref T result) {
         foreach(member; __traits(allMembers, T)) {
@@ -134,5 +169,6 @@ private:
     }
 
     MySQLValue[] values_;
+    string[] names_;
     size_t[string] index_;
 }
