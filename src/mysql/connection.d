@@ -104,10 +104,12 @@ struct Connection(SocketType) {
         send(Commands.COM_STMT_PREPARE, sql);
 
         auto answer = retrieve();
-        check(answer);
+
+        if (answer.peek!ubyte != StatusPackets.OK_Packet)
+            check(answer);
 
         answer.expect!ubyte(0);
-        
+
         auto id = answer.eat!uint;
         auto columns = answer.eat!ushort;
         auto params = answer.eat!ushort;

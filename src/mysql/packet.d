@@ -72,6 +72,8 @@ struct InputPacket {
         ulong hi;
 
         switch(header) {
+        case 0xfb:
+            return 0;
         case 0xfc:
             return eat!ushort;
         case 0xfd:
