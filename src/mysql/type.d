@@ -13,7 +13,7 @@ public import mysql.row;
 
 struct MySQLBinary {
     this(T)(T[] data) {
-        data_ = (cast(ubyte*)data.ptr)[0..typeof(T.init[0]).sizeof * data.length];
+        data_ = (cast(ubyte*)data.ptr)[0..typeof(T[].init[0]).sizeof * data.length];
     }
 
     @property size_t length() const {
@@ -548,7 +548,7 @@ void putValue(T)(ref OutputPacket packet, T value) if (isIntegral!T || isBoolean
     } else static if (is(T == short) || is(T == ushort) || is(T == wchar)) {
         packet.put!ushort(value);
     } else static if (is(T == byte) || is(T == ubyte) || is(T == char) || is(T == bool)) {
-        packet.put!ushort(value);
+        packet.put!ubyte(value);
     }
 }
 
