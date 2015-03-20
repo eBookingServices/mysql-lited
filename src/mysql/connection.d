@@ -3,7 +3,6 @@ module mysql.connection;
 
 import std.algorithm;
 import std.array;
-import std.functional;
 import std.string;
 import std.traits;
 
@@ -17,6 +16,15 @@ immutable CapabilityFlags DefaultClientCaps = CapabilityFlags.CLIENT_LONG_PASSWO
     CapabilityFlags.CLIENT_CONNECT_WITH_DB | CapabilityFlags.CLIENT_PROTOCOL_41 | CapabilityFlags.CLIENT_SECURE_CONNECTION;
 
 
+struct ConnectionStatus {
+    ulong affected = 0;
+    ulong insertID = 0;
+    ushort flags = 0;
+    ushort error = 0;
+    ushort warnings = 0;
+}
+
+
 private struct ConnectionSettings {
     CapabilityFlags caps = DefaultClientCaps;
 
@@ -25,17 +33,6 @@ private struct ConnectionSettings {
     const(char)[] pwd;
     const(char)[] db;
     ushort port = 3306;
-}
-
-
-private struct ConnectionStatus {
-    CapabilityFlags caps = cast(CapabilityFlags)0;
-
-    ulong affected = 0;
-    ulong insertID = 0;
-    ushort flags = 0;
-    ushort error = 0;
-    ushort warnings = 0;
 }
 
 
@@ -267,8 +264,16 @@ struct Connection(SocketType) {
         send(Commands.COM_STMT_CLOSE, data);
     }
 
+    @property void onStatus(void delegate(ConnectionStatus status, const(char)[] message) callback) {
+        onStatus_ = callback;
+    }
+
+    @property void delegate(ConnectionStatus status, const(char)[] message) onStatus() const {
+        return onStatus_;
+    }
+
     @property ulong insertID() {
-        return cast(size_t)status_.insertID;
+        return status_.insertID;
     }
 
     @property ulong affected() {
@@ -447,12 +452,12 @@ private:
                 token[i] = token[i] ^ pass[i];
         }
 
-        status_.caps = cast(CapabilityFlags)(settings_.caps & server_.caps);
+        caps_ = cast(CapabilityFlags)(settings_.caps & server_.caps);
 
         auto reply = OutputPacket(&out_);
         reply.reserve(64 + settings_.user.length + settings_.pwd.length + settings_.db.length);
         
-        reply.put!uint(status_.caps);
+        reply.put!uint(caps_);
         reply.put!uint(1);
         reply.put!ubyte(33);
         reply.fill(0, 23);
@@ -461,7 +466,7 @@ private:
         reply.put!ubyte(0);
 
         if (settings_.pwd.length) {
-            if (status_.caps & CapabilityFlags.CLIENT_SECURE_CONNECTION) {
+            if (caps_ & CapabilityFlags.CLIENT_SECURE_CONNECTION) {
                 reply.put!ubyte(token.length);
                 reply.put(token);
             } else {
@@ -472,7 +477,7 @@ private:
             reply.put!ubyte(0);
         }
 
-        if (settings_.db.length && (status_.caps & CapabilityFlags.CLIENT_CONNECT_WITH_DB)) {
+        if (settings_.db.length && (caps_ & CapabilityFlags.CLIENT_CONNECT_WITH_DB)) {
             reply.put(settings_.db);
             reply.put!ubyte(0);
         }
@@ -496,7 +501,7 @@ private:
             status_.flags = packet.eat!ushort;
             status_.warnings = packet.eat!ushort;
 
-            if (status_.caps & CapabilityFlags.CLIENT_SESSION_TRACK) {
+            if (caps_ & CapabilityFlags.CLIENT_SESSION_TRACK) {
                 info(packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc()));
                 packet.skip(1);
 
@@ -508,17 +513,28 @@ private:
                 auto len = cast(size_t)packet.eatLenEnc();
                 info(packet.eat!(const(char)[])(min(len, packet.remaining)));
             }
+
+            if (onStatus_)
+                onStatus_(status_, info_);
+
             break;
         case StatusPackets.EOF_Packet:
             status_.warnings = packet.eat!ushort;
             status_.flags = packet.eat!ushort;
             info([]);
+
+            if (onStatus_)
+                onStatus_(status_, info_);
+
             break;
         case StatusPackets.ERR_Packet:
             status_.flags = 0;
             status_.error = packet.eat!ushort;
             packet.skip(6);
             info(packet.eat!(const(char)[])(packet.remaining));
+
+            if (onStatus_)
+                onStatus_(status_, info_);
 
             switch(status_.error) {
             case ErrorCodes.ER_DUP_ENTRY_WITH_KEY_NAME:
@@ -763,6 +779,8 @@ private:
     ubyte[] out_;
     ubyte seq_ = 0;
 
+    void delegate(ConnectionStatus status, const(char)[] message) onStatus_;
+    CapabilityFlags caps_;
     ConnectionStatus status_;
     ConnectionSettings settings_;
     ServerInfo server_;
