@@ -215,14 +215,19 @@ struct Connection(SocketType) {
                     ++indexArg;
                 }
 
-                if ((i == argCount - 1) || ((indexArg - bitsOut) >= NullsCapacity)) {
-                    while (true) {
-                        auto bits = min(indexArg - bitsOut, NullsCapacity);
-                        packet.put(nulls[0..(bits + 7) >> 3]);
-                        nulls[] = 0;
-                        bitsOut += bits;
+                auto finishing = (i == argCount - 1);
+                auto remaining = indexArg - bitsOut;
 
-                        if ((indexArg - bitsOut) < NullsCapacity)
+                if (finishing || (remaining >= NullsCapacity)) {
+                    while (remaining) {
+                        auto bits = min(remaining, NullsCapacity);
+
+                        packet.put(nulls[0..(bits + 7) >> 3]);
+                        bitsOut += bits;
+                        nulls[] = 0;
+
+                        remaining = (indexArg - bitsOut);
+                        if (!remaining || (!finishing && (remaining < NullsCapacity)))
                             break;
                     }
                 }
