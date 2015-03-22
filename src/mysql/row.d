@@ -17,6 +17,10 @@ template isWritableDataMember(T, string Member) {
 		enum isWritableDataMember = false;
     } else static if (is(typeof(__traits(getMember, T, Member)) == void)) {
         enum isWritableDataMember = false;
+    } else static if (isArray!(typeof(__traits(getMember, T, Member))) && !is(typeof(typeof(__traits(getMember, T, Member)).init[0]) == ubyte) && !is(typeof(__traits(getMember, T, Member)) == string)) {
+        enum isWritableDataMember = false;
+    } else static if (isAssociativeArray!(typeof(__traits(getMember, T, Member)))) {
+        enum isWritableDataMember = false;
     } else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))) {
         enum isWritableDataMember = false;
     } else static if (!is(typeof((){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }()))) {
