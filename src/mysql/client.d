@@ -31,6 +31,7 @@ final class MySQLClientT(SocketType) {
         auto connection = connections_.lockConnection();
         if (connection.inTransaction)
             connection.rollback();
+        connection.onStatus = null;
         return connection;
     }
 
