@@ -119,7 +119,7 @@ struct Connection(SocketType) {
             foreach (i; 0..params)
                 columnDef(retrieve(), Commands.COM_STMT_PREPARE, def);
 
-            skipEOF(retrieve());
+            eatEOF(retrieve());
         }
 
         if (columns) {
@@ -127,7 +127,7 @@ struct Connection(SocketType) {
             foreach (i; 0..columns)
                 columnDef(retrieve(), Commands.COM_STMT_PREPARE, def);
 
-            skipEOF(retrieve());
+            eatEOF(retrieve());
         }
 
         return PreparedStatement(id, params);
@@ -264,11 +264,12 @@ struct Connection(SocketType) {
         send(Commands.COM_STMT_CLOSE, data);
     }
 
-    @property void onStatus(void delegate(ConnectionStatus status, const(char)[] message) callback) {
+    alias OnStatusCallback = void delegate(ConnectionStatus status, const(char)[] message);
+    @property void onStatus(OnStatusCallback callback) {
         onStatus_ = callback;
     }
 
-    @property void delegate(ConnectionStatus status, const(char)[] message) onStatus() const {
+    @property OnStatusCallback onStatus() const {
         return onStatus_;
     }
 
@@ -519,6 +520,7 @@ private:
 
             break;
         case StatusPackets.EOF_Packet:
+            status_.error = 0;
             status_.warnings = packet.eat!ushort;
             status_.flags = packet.eat!ushort;
             info([]);
@@ -529,6 +531,7 @@ private:
             break;
         case StatusPackets.ERR_Packet:
             status_.flags = 0;
+            status_.warnings = 0;
             status_.error = packet.eat!ushort;
             packet.skip(6);
             info(packet.eat!(const(char)[])(packet.remaining));
@@ -642,7 +645,7 @@ private:
         row_.header(header);
 
         size_t index = 0;
-        auto statusFlags = skipEOF(retrieve());
+        auto statusFlags = eatEOF(retrieve());
         if (statusFlags & StatusFlags.SERVER_STATUS_CURSOR_EXISTS) {
             uint[2] data = [ stmt, 4096 ]; // todo: make setting - rows per fetch
             while (statusFlags & (StatusFlags.SERVER_STATUS_CURSOR_EXISTS | StatusFlags.SERVER_MORE_RESULTS_EXISTS)) {
@@ -655,7 +658,7 @@ private:
                 auto row = answer.empty ? retrieve() : answer;
                 while (true) {
                     if (row.peek!ubyte == StatusPackets.EOF_Packet) {
-                        statusFlags = skipEOF(row);
+                        statusFlags = eatEOF(row);
                         break;
                     }
 
@@ -672,7 +675,7 @@ private:
             auto row = retrieve();
             while (true) {
                 if (row.peek!ubyte == StatusPackets.EOF_Packet) {
-                    eatStatus(row);
+                    eatEOF(row);
                     break;
                 }
 
@@ -691,12 +694,12 @@ private:
         auto columns = cast(size_t)packet.eatLenEnc();
         auto defs = columnDefs(columns, cmd);
 
-        auto statusFlags = skipEOF(retrieve());
+        auto statusFlags = eatEOF(retrieve());
         if ((statusFlags & StatusFlags.SERVER_STATUS_CURSOR_EXISTS) == 0) {
             while (true) {
                 auto row = retrieve();
                 if (row.peek!ubyte == StatusPackets.EOF_Packet) {
-                    eatStatus(row);
+                    eatEOF(row);
                     break;
                 }
             }
@@ -704,27 +707,29 @@ private:
     }
 
     void discardUntilEOF(InputPacket packet) {
-        if (packet.peek!ubyte == StatusPackets.EOF_Packet) {
-            eatStatus(packet);
-            return;
-        } else {
-            while (true) {
-                if (packet.peek!ubyte == StatusPackets.EOF_Packet) {
-                    eatStatus(packet);
-                    break;
-                }
-                packet = retrieve();
+        while (true) {
+            if (packet.peek!ubyte == StatusPackets.EOF_Packet) {
+                eatEOF(packet);
+                break;
             }
+            packet = retrieve();
         }
     }
 
-    auto skipEOF(InputPacket packet) {
+    auto eatEOF(InputPacket packet) {
         auto id = packet.eat!ubyte;
         if (id != StatusPackets.EOF_Packet)
             throw new MySQLProtocolException("Unexpected packet format");
-        
-        packet.skip(2);
-        return packet.eat!ushort();
+
+        status_.error = 0;
+        status_.warnings = packet.eat!ushort();
+        status_.flags = packet.eat!ushort();
+        info([]);
+
+        if (onStatus_)
+            onStatus_(status_, info_);
+
+        return status_.flags;
     }
 
     void connectionSettings(const(char)[] connectionString) {
@@ -779,7 +784,7 @@ private:
     ubyte[] out_;
     ubyte seq_ = 0;
 
-    void delegate(ConnectionStatus status, const(char)[] message) onStatus_;
+    OnStatusCallback onStatus_;
     CapabilityFlags caps_;
     ConnectionStatus status_;
     ConnectionSettings settings_;
