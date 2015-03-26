@@ -85,7 +85,7 @@ struct MySQLValue {
         }
     }
 
-    const T get(T)() const if (isScalarType!T) {
+    T get(T)() const if (isScalarType!T) {
         switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to scalar");
@@ -108,7 +108,7 @@ struct MySQLValue {
         }
     }
 
-    const T get(T)() const if (is(T == SysTime) || is(T == DateTime) ||  is(T == Date) || is(T == TimeOfDay)) {
+    T get(T)() const if (is(T == SysTime) || is(T == DateTime) ||  is(T == Date) || is(T == TimeOfDay)) {
         switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to timestamp");
@@ -124,7 +124,7 @@ struct MySQLValue {
         }
     }
 
-    const T get(T)() const if (is(T == Duration)) {
+    T get(T)() const if (is(T == Duration)) {
         switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to time");
@@ -136,7 +136,7 @@ struct MySQLValue {
         }
     }
 
-    const T get(T)() const if (isArray!T) {
+    T get(T)() const if (isArray!T) {
         switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to array");
@@ -160,19 +160,19 @@ struct MySQLValue {
         }
     }
 
-    const T peek(T)() const if (isScalarType!T) {
+    T peek(T)() const if (isScalarType!T) {
         return get!T;
     }
 
-    const T peek(T)() const if (is(T == SysTime) || is(T == DateTime) ||  is(T == Date) || is(T == TimeOfDay)) {
+    T peek(T)() const if (is(T == SysTime) || is(T == DateTime) ||  is(T == Date) || is(T == TimeOfDay)) {
         return get!T;
     }
 
-    const T peek(T)() const if (is(T == Duration)) {
+    T peek(T)() const if (is(T == Duration)) {
         return get!T;
     }
 
-    const T peek(T)() const if (isArray!T) {
+    T peek(T)() const if (isArray!T) {
         switch(type_) {
             case ColumnTypes.MYSQL_TYPE_NULL:
                 throw new MySQLErrorException("Cannot convert NULL to array");
