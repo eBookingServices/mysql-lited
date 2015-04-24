@@ -27,16 +27,16 @@ final class MySQLClientT(SocketType) {
 		lockConnection();
 	}
 
-    auto lockConnection() {
-        auto connection = connections_.lockConnection();
-        if (connection.inTransaction)
-            connection.rollback();
-        connection.onStatus = null;
-        return connection;
-    }
+	auto lockConnection() {
+		auto connection = connections_.lockConnection();
+		if (connection.inTransaction)
+			connection.rollback();
+		connection.onStatus = null;
+		return connection;
+	}
 
-    package alias ConnectionType = Connection!VibeSocket*;
-    private ConnectionPool!(Connection!SocketType*) connections_;
+	package alias ConnectionType = Connection!VibeSocket*;
+	private ConnectionPool!(Connection!SocketType*) connections_;
 }
 
 alias MySQLClient = MySQLClientT!VibeSocket;
