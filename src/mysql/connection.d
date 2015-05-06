@@ -485,10 +485,10 @@ private:
 			reply.put!ubyte(0);
 		}
 
-		if (settings_.db.length && (caps_ & CapabilityFlags.CLIENT_CONNECT_WITH_DB)) {
+		if (settings_.db.length && (caps_ & CapabilityFlags.CLIENT_CONNECT_WITH_DB))
 			reply.put(settings_.db);
-			reply.put!ubyte(0);
-		}
+
+		reply.put!ubyte(0);
 
 		reply.finalize(seq_);
 		++seq_;
