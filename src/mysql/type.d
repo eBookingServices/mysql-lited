@@ -514,22 +514,24 @@ void putValue(T)(ref OutputPacket packet, T value) if (is(T == Duration)) {
 }
 
 void putValueType(T)(ref OutputPacket packet, T value) if (isIntegral!T || isBoolean!T) {
-	static if (isUnsigned!T) {
+	alias UT = Unqual!T;
+
+	static if (isUnsigned!UT) {
 		const ubyte signbyte = 0x80;
 	} else {
 		const ubyte signbyte = 0x00;
 	}
 
-	static if (is(T == long) || is(T == ulong)) {
+	static if (is(UT == long) || is(UT == ulong)) {
 		packet.put!ubyte(ColumnTypes.MYSQL_TYPE_LONGLONG);
 		packet.put!ubyte(signbyte);
-	} else static if (is(T == int) || is(T == uint) || is(T == dchar)) {
+	} else static if (is(UT == int) || is(UT == uint) || is(UT == dchar)) {
 		packet.put!ubyte(ColumnTypes.MYSQL_TYPE_LONG);
 		packet.put!ubyte(signbyte);
-	} else static if (is(T == short) || is(T == ushort) || is(T == wchar)) {
+	} else static if (is(UT == short) || is(UT == ushort) || is(UT == wchar)) {
 		packet.put!ubyte(ColumnTypes.MYSQL_TYPE_SHORT);
 		packet.put!ubyte(signbyte);
-	} else static if (is(T == byte) || is(T == ubyte) || is(T == char) || is(T == bool)) {
+	} else {
 		packet.put!ubyte(ColumnTypes.MYSQL_TYPE_TINY);
 		packet.put!ubyte(signbyte);
 	}
@@ -541,13 +543,15 @@ void putValueType(T)(ref OutputPacket packet, T value) if (is(T == typeof(null))
 }
 
 void putValue(T)(ref OutputPacket packet, T value) if (isIntegral!T || isBoolean!T) {
-	static if (is(T == long) || is(T == ulong)) {
+	alias UT = Unqual!T;
+
+	static if (is(UT == long) || is(UT == ulong)) {
 		packet.put!ulong(value);
-	} else static if (is(T == int) || is(T == uint) || is(T == dchar)) {
+	} else static if (is(UT == int) || is(UT == uint) || is(UT == dchar)) {
 		packet.put!uint(value);
-	} else static if (is(T == short) || is(T == ushort) || is(T == wchar)) {
+	} else static if (is(UT == short) || is(UT == ushort) || is(UT == wchar)) {
 		packet.put!ushort(value);
-	} else static if (is(T == byte) || is(T == ubyte) || is(T == char) || is(T == bool)) {
+	} else {
 		packet.put!ubyte(value);
 	}
 }
