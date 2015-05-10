@@ -39,14 +39,83 @@ enum Strict {
 }
 
 
+private uint hashOf(const(char)[] x) {
+	uint hash = 5381;
+	foreach(i; 0..x.length)
+		hash = (hash * 33) ^ cast(size_t)(std.ascii.toLower(x.ptr[i]));
+	return cast(uint)hash;
+}
+
+private bool equalsCI(const(char)[]x, const(char)[] y) {
+	if (x.length != y.length)
+		return false;
+
+	foreach(i; 0..x.length) {
+		if (std.ascii.toLower(x.ptr[i]) != std.ascii.toLower(y.ptr[i]))
+			return false;
+	}
+
+	return true;
+}
+
+
 struct MySQLRow {
 	package void header(MySQLHeader header) {
-		index_ = null;
-		names_.length = header.length;
+		auto headerLen = header.length;
+		auto idealLen = (headerLen + (headerLen >> 2));
+		auto indexLen = index_.length;
+
+		index_[] = 0;
+
+		if (indexLen < idealLen) {
+			indexLen = max(32, indexLen);
+
+			while (indexLen < idealLen)
+				indexLen <<= 1;
+
+			index_.length = indexLen;
+		}
+
+		auto mask = (indexLen - 1);
+		assert((indexLen & mask) == 0);
+
+		names_.length = headerLen;
 		foreach (index, ref column; header) {
 			names_[index] = column.name;
-			index_[column.name] = index;
+
+			auto hash = hashOf(column.name) & mask;
+			auto probe = 1;
+
+			while (true) {
+				if (index_[hash] == 0) {
+					index_[hash] = index + 1;
+					break;
+				}
+
+				hash = (hash + probe++) & mask;
+			}
 		}
+	}
+
+	private uint find(uint hash, const(char)[] key) const {
+		if (auto mask = index_.length - 1) {
+			assert((index_.length & mask) == 0);
+
+			hash = hash & mask;
+			auto probe = 1;
+
+			while (true) {
+				auto index = index_[hash];
+				if (index) {
+					if (names_[index - 1].equalsCI(key))
+						return index;
+					hash = (hash + probe++) & mask;
+				} else {
+					break;
+				}
+			}
+		}
+		return 0;
 	}
 
 	package void set(size_t index, MySQLValue x) {
@@ -70,12 +139,15 @@ struct MySQLRow {
 	}
 
 	@property MySQLValue opDispatch(string key)() const {
-		return opIndex(key);
+		enum hash = hashOf(key);
+		if (auto index = find(hash, key))
+			return opIndex(index - 1);
+		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
 	}
 
 	MySQLValue opIndex(string key) const {
-		if (auto pindex = key in index_)
-			return values_[*pindex];
+		if (auto index = find(key.hashOf, key))
+			return values_[index - 1];
 		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
 	}
 
@@ -84,8 +156,8 @@ struct MySQLRow {
 	}
 
 	const(MySQLValue)* opBinaryRight(string op)(string key) const if (op == "in") {
-		if (auto pindex = key in index_)
-			return &values_[*pindex];
+		if (auto index = find(key.hashOf, key))
+			return &values_[index - 1];
 		return null;
 	}
 
@@ -160,12 +232,18 @@ private:
 					enum pathNew = pathMember ~ ".";
 					structurize!(MemberType, strict, pathNew)(__traits(getMember, result, member));
 				} else {
-					static if (strict == Strict.yes) {
-						__traits(getMember, result, member) = this[pathMember].get!(Unqual!MemberType);
-					} else {
-						auto pvalue = pathMember in this;
-						if (pvalue && !pvalue.isNull)
+					enum hash = pathMember.hashOf;
+
+					if (auto index = find(hash, pathMember)) {
+						auto pvalue = values_[index - 1];
+						if (!pvalue.isNull) {
 							__traits(getMember, result, member) = pvalue.get!(Unqual!MemberType);
+							continue;
+						}
+					}
+
+					static if (strict == Strict.yes) {
+						throw new MySQLErrorException("Column '" ~ pathMember ~ "' was not found in this result set");
 					}
 				}
 			}
@@ -174,5 +252,5 @@ private:
 
 	MySQLValue[] values_;
 	const(char)[][] names_;
-	uint[const(char)[]] index_;
+	uint[] index_;
 }
