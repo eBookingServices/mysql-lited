@@ -115,9 +115,8 @@ struct Connection(SocketType) {
 		auto warnings = answer.eat!ushort;
 
 		if (params) {
-			MySQLColumn def;
 			foreach (i; 0..params)
-				columnDef(retrieve(), Commands.COM_STMT_PREPARE, def);
+				skipColumnDef(retrieve(), Commands.COM_STMT_PREPARE);
 
 			eatEOF(retrieve());
 		}
@@ -125,7 +124,7 @@ struct Connection(SocketType) {
 		if (columns) {
 			MySQLColumn def;
 			foreach (i; 0..columns)
-				columnDef(retrieve(), Commands.COM_STMT_PREPARE, def);
+				skipColumnDef(retrieve(), Commands.COM_STMT_PREPARE);
 
 			eatEOF(retrieve());
 		}
@@ -564,15 +563,32 @@ private:
 		info_[0..$] = value;
 	}
 
+	void skipColumnDef(InputPacket packet, Commands cmd) {
+		packet.skip(cast(size_t)packet.eatLenEnc());	// catalog
+		packet.skip(cast(size_t)packet.eatLenEnc());	// schema
+		packet.skip(cast(size_t)packet.eatLenEnc());	// table
+		packet.skip(cast(size_t)packet.eatLenEnc());	// original_table
+		packet.skip(cast(size_t)packet.eatLenEnc());	// name
+		packet.skip(cast(size_t)packet.eatLenEnc());	// original_name
+		packet.skipLenEnc();							// next_length
+		packet.skip(10); // 2 + 4 + 1 + 2 + 1			// charset, length, type, flags, decimals
+		packet.expect!ushort(0);
+
+		if (cmd == Commands.COM_FIELD_LIST)
+			packet.skip(cast(size_t)packet.eatLenEnc());// default values
+	}
+
 	void columnDef(InputPacket packet, Commands cmd, ref MySQLColumn def) {
-		auto catalog = packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc());
-		auto schema = packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc());
-		auto table = packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc());
-		auto org_table = packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc());
-		def.name = packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc()).idup; // todo: fix allocation
-		auto org_name = packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc());
-		auto next_length = cast(size_t)packet.eatLenEnc();
-		auto char_set = packet.eat!ushort;
+		packet.skip(cast(size_t)packet.eatLenEnc());	// catalog
+		packet.skip(cast(size_t)packet.eatLenEnc());	// schema
+		packet.skip(cast(size_t)packet.eatLenEnc());	// table
+		packet.skip(cast(size_t)packet.eatLenEnc());	// original_table
+		auto len = cast(size_t)packet.eatLenEnc();
+		columns_ ~= packet.eat!(const(char)[])(len);
+		def.name = columns_[$-len..$];
+		packet.skip(cast(size_t)packet.eatLenEnc());	// original_name
+		packet.skipLenEnc();							// next_length
+		packet.skip(2);									// charset
 		def.length = packet.eat!uint;
 		def.type = cast(ColumnTypes)packet.eat!ubyte;
 		def.flags = packet.eat!ushort;
@@ -580,9 +596,8 @@ private:
 
 		packet.expect!ushort(0);
 
-		if (cmd == Commands.COM_FIELD_LIST) {
-			auto default_values = packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc());
-		}
+		if (cmd == Commands.COM_FIELD_LIST)
+			packet.skip(cast(size_t)packet.eatLenEnc());// default values
 	}
 
 	auto columnDefs(size_t count, Commands cmd) {
@@ -647,6 +662,8 @@ private:
 	}
 
 	void resultSet(RowHandler)(InputPacket packet, uint stmt, Commands cmd, RowHandler handler) {
+		columns_.length = 0;
+
 		auto columns = cast(size_t)packet.eatLenEnc();
 		auto header = columnDefs(columns, cmd);
 		row_.length = columns;
@@ -787,6 +804,7 @@ private:
 	SocketType socket_;
 	MySQLHeader header_;
 	MySQLRow row_;
+	char[] columns_;
 	char[] info_;
 	ubyte[] in_;
 	ubyte[] out_;

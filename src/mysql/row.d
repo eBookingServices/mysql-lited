@@ -43,7 +43,7 @@ struct MySQLRow {
 	package void header(MySQLHeader header) {
 		index_ = null;
 		names_.length = header.length;
-		foreach (index, column; header) {
+		foreach (index, ref column; header) {
 			names_[index] = column.name;
 			index_[column.name] = index;
 		}
@@ -65,7 +65,7 @@ struct MySQLRow {
 		return values_.length;
 	}
 
-	@property const(string)[] columns() const {
+	@property const(const(char)[])[] columns() const {
 		return names_;
 	}
 
@@ -103,7 +103,7 @@ struct MySQLRow {
 		return 0;
 	}
 
-	int opApply(int delegate(const ref string, const ref MySQLValue) del) const {
+	int opApply(int delegate(const ref const(char)[], const ref MySQLValue) del) const {
 		foreach (size_t i, ref v; values_)
 			if (auto ret = del(names_[i], v))
 				return ret;
@@ -173,6 +173,6 @@ private:
 	}
 
 	MySQLValue[] values_;
-	string[] names_;
-	size_t[string] index_;
+	const(char)[][] names_;
+	uint[const(char)[]] index_;
 }

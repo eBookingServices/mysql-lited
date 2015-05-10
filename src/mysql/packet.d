@@ -63,6 +63,27 @@ struct InputPacket {
 		return index;
 	}
 
+	void skipLenEnc() {
+		auto header = eat!ubyte;
+		if (header >= 0xfb) {
+			switch(header) {
+				case 0xfb:
+					return;
+				case 0xfc:
+					skip(2);
+					return;
+				case 0xfd:
+					skip(3);
+					return;
+				case 0xfe:
+					skip(8);
+					return;
+				default:
+					throw new MySQLProtocolException("Bad packet format");
+			}
+		}
+	}
+
 	ulong eatLenEnc() {
 		auto header = eat!ubyte;
 		if (header < 0xfb)

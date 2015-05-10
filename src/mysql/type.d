@@ -219,7 +219,7 @@ struct MySQLColumn {
 	ushort flags;
 	ubyte decimals;
 	ColumnTypes type;
-	string name; // todo: fix allocation
+	const(char)[] name;
 }
 
 
