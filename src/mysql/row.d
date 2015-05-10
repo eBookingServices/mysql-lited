@@ -42,7 +42,7 @@ enum Strict {
 private uint hashOf(const(char)[] x) {
 	uint hash = 5381;
 	foreach(i; 0..x.length)
-		hash = (hash * 33) ^ cast(size_t)(std.ascii.toLower(x.ptr[i]));
+		hash = (hash * 33) ^ cast(uint)(std.ascii.toLower(x.ptr[i]));
 	return cast(uint)hash;
 }
 
@@ -88,7 +88,7 @@ struct MySQLRow {
 
 			while (true) {
 				if (index_[hash] == 0) {
-					index_[hash] = index + 1;
+					index_[hash] = cast(uint)index + 1;
 					break;
 				}
 
