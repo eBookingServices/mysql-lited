@@ -236,10 +236,14 @@ private:
 
 					if (auto index = find(hash, pathMember)) {
 						auto pvalue = values_[index - 1];
-						if (!pvalue.isNull) {
-							__traits(getMember, result, member) = pvalue.get!(Unqual!MemberType);
-							continue;
+
+						static if (strict == Strict.no) {
+							if (pvalue.isNull)
+								continue;
 						}
+
+						__traits(getMember, result, member) = pvalue.get!(Unqual!MemberType);
+						continue;
 					}
 
 					static if (strict == Strict.yes) {
