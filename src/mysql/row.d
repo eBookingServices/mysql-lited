@@ -35,6 +35,7 @@ template isWritableDataMember(T, string Member) {
 
 enum Strict {
 	yes = 0,
+	yesIgnoreNull,
 	no,
 }
 
@@ -222,7 +223,7 @@ struct MySQLRow {
 	}
 
 private:
-	void structurize(T, Strict strict = Strict.yes, string path = null)(ref T result) {
+	void structurize(T, Strict strict = Strict.yesIgnoreNull, string path = null)(ref T result) {
 		foreach(member; __traits(allMembers, T)) {
 			static if (isWritableDataMember!(T, member)) {
 				enum pathMember = path ~ member;
@@ -237,7 +238,7 @@ private:
 					if (auto index = find(hash, pathMember)) {
 						auto pvalue = values_[index - 1];
 
-						static if (strict == Strict.no) {
+						static if ((strict == Strict.no) || (strict == Strict.yesIgnoreNull)) {
 							if (pvalue.isNull)
 								continue;
 						}
