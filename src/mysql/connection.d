@@ -208,6 +208,10 @@ struct Connection(SocketType) {
 				static if (is(typeof(arg) == typeof(null))) {
 					nulls[index] = nulls[index] | (1 << bit);
 					++indexArg;
+				} else static if (is(Unqual!(typeof(arg)) == MySQLValue)) {
+					if (arg.isNull)
+						nulls[index] = nulls[index] | (1 << bit);
+					++indexArg;
 				} else static if (isArray!(typeof(arg)) && !isSomeString!(typeof(arg))) {
 					indexArg += arg.length;
 				} else {
