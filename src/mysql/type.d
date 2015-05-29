@@ -93,7 +93,7 @@ struct MySQLValue {
 
 		final switch(type_) with (ColumnTypes) {
 			case MYSQL_TYPE_NULL:
-				return "null";
+				return null;
 			case MYSQL_TYPE_TINY:
 				return to!string(*cast(ubyte*)buffer_.ptr);
 			case MYSQL_TYPE_YEAR:
