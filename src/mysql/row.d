@@ -201,14 +201,21 @@ struct MySQLRow {
 		return result;
 	}
 
-	void toStruct(T, Strict strict = Strict.yes)(ref T x) if(is(Unqual!T == struct)) {
+	void toStruct(T, Strict strict = Strict.yesIgnoreNull)(ref T x) if(is(Unqual!T == struct)) {
 		static if (isTuple!(Unqual!T)) {
 			foreach(i, ref f; x.field) {
-				static if (strict == Strict.yes) {
+				if (i < length) {
+					static if (strict != Strict.yes) {
+						if (this[i].isNull)
+							continue;
+					}
+					
 					f = this[i].get!(Unqual!(typeof(f)));
-				} else {
-					if (!this[i].isNull)
-						f = this[i].get!(Unqual!(typeof(f)));
+					continue;
+				}
+				
+				static if ((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) {
+					throw new MySQLErrorException("Column " ~ i ~ " is out of range for this result set");
 				}
 			}
 		} else {
@@ -216,7 +223,7 @@ struct MySQLRow {
 		}
 	}
 
-	T toStruct(T, Strict strict = Strict.yes)() if (is(Unqual!T == struct)) {
+	T toStruct(T, Strict strict = Strict.yesIgnoreNull)() if (is(Unqual!T == struct)) {
 		T result;
 		toStruct!(T, strict)(result);
 		return result;
@@ -247,7 +254,7 @@ private:
 						continue;
 					}
 
-					static if (strict == Strict.yes) {
+					static if ((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) {
 						throw new MySQLErrorException("Column '" ~ pathMember ~ "' was not found in this result set");
 					}
 				}
