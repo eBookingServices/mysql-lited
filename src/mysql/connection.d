@@ -46,9 +46,27 @@ private struct ServerInfo {
 }
 
 
+@property string placeholders(size_t x, bool parens = true) {
+	import std.range : repeat, take;
+
+	if (parens)
+		return "(" ~ ("?".repeat().take(x).join(",")) ~ ")";
+	return "?".repeat.take(x).join(",");
+}
+
+
+@property string placeholders(T)(T[] x, bool parens = true) {
+	import std.range : repeat, take;
+
+	if (parens)
+		return "(" ~ ("?".repeat().take(x.length).join(",")) ~ ")";
+	return "?".repeat.take(x.length).join(",");
+}
+
+
 struct PreparedStatement {
 package:
-	uint id;    // todo: investigate if it's really necessary to close statements explicitly
+	uint id;
 	uint params;
 }
 
