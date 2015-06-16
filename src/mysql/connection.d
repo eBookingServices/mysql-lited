@@ -212,61 +212,61 @@ struct Connection(SocketType) {
 		enum argCount = shouldDiscard ? args.length : (args.length - 1);
 
 		if (!argCount && stmt.params)
-			throw new MySQLErrorException("Wrong number of parameters for query");
+			throw new MySQLErrorException(format("Wrong number of parameters for query. Got 0 but expected %d.", stmt.params));
 
 		static if (argCount) {
-			enum NullsCapacity = 128; // must be power of 2
-			ubyte[NullsCapacity >> 3] nulls;
-			size_t bitsOut = 0;
-			size_t indexArg = 0;
+		enum NullsCapacity = 128; // must be power of 2
+		ubyte[NullsCapacity >> 3] nulls;
+		size_t bitsOut = 0;
+		size_t indexArg = 0;
 			foreach(i, arg; args[0..argCount]) {
-				const auto index = (indexArg >> 3) & (NullsCapacity - 1);
-				const auto bit = indexArg & 7;
+			const auto index = (indexArg >> 3) & (NullsCapacity - 1);
+			const auto bit = indexArg & 7;
 
-				static if (is(typeof(arg) == typeof(null))) {
+			static if (is(typeof(arg) == typeof(null))) {
+				nulls[index] = nulls[index] | (1 << bit);
+				++indexArg;
+			} else static if (is(Unqual!(typeof(arg)) == MySQLValue)) {
+				if (arg.isNull)
 					nulls[index] = nulls[index] | (1 << bit);
-					++indexArg;
-				} else static if (is(Unqual!(typeof(arg)) == MySQLValue)) {
-					if (arg.isNull)
-						nulls[index] = nulls[index] | (1 << bit);
-					++indexArg;
-				} else static if (isArray!(typeof(arg)) && !isSomeString!(typeof(arg))) {
-					indexArg += arg.length;
-				} else {
-					++indexArg;
-				}
+				++indexArg;
+			} else static if (isArray!(typeof(arg)) && !isSomeString!(typeof(arg))) {
+				indexArg += arg.length;
+			} else {
+				++indexArg;
+			}
 
 				auto finishing = (i == argCount - 1);
-				auto remaining = indexArg - bitsOut;
+			auto remaining = indexArg - bitsOut;
 
-				if (finishing || (remaining >= NullsCapacity)) {
-					while (remaining) {
-						auto bits = min(remaining, NullsCapacity);
+			if (finishing || (remaining >= NullsCapacity)) {
+				while (remaining) {
+					auto bits = min(remaining, NullsCapacity);
 
-						packet.put(nulls[0..(bits + 7) >> 3]);
-						bitsOut += bits;
-						nulls[] = 0;
+					packet.put(nulls[0..(bits + 7) >> 3]);
+					bitsOut += bits;
+					nulls[] = 0;
 
-						remaining = (indexArg - bitsOut);
-						if (!remaining || (!finishing && (remaining < NullsCapacity)))
-							break;
-					}
-				}
-			}
-			packet.put!ubyte(1);
-
-			if (indexArg != stmt.params)
-				throw new MySQLErrorException("Wrong number of parameters for query");
-
-			foreach (arg; args[0..argCount])
-				putValueType(packet, arg);
-
-			foreach (arg; args[0..argCount]) {
-				static if (!is(typeof(arg) == typeof(null))) {
-					putValue(packet, arg);
+					remaining = (indexArg - bitsOut);
+					if (!remaining || (!finishing && (remaining < NullsCapacity)))
+						break;
 				}
 			}
 		}
+		packet.put!ubyte(1);
+
+			if (indexArg != stmt.params)
+				throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", indexArg, stmt.params));
+
+			foreach (arg; args[0..argCount])
+			putValueType(packet, arg);
+
+			foreach (arg; args[0..argCount]) {
+			static if (!is(typeof(arg) == typeof(null))) {
+				putValue(packet, arg);
+			}
+		}
+	}
 
 		packet.finalize(seq_);
 		++seq_;
@@ -622,11 +622,10 @@ private:
 			packet.skip(cast(size_t)packet.eatLenEnc());// default values
 	}
 
-	auto columnDefs(size_t count, Commands cmd) {
-		header_.length = count;
+	void columnDefs(size_t count, Commands cmd, ref MySQLColumn[] defs) {
+		defs.length = count;
 		foreach (i; 0..count)
-			columnDef(retrieve(), cmd, header_[i]);
-		return header_;
+			columnDef(retrieve(), cmd, defs[i]);
 	}
 
 	void resultSetRow(InputPacket packet, Commands cmd, MySQLHeader header, MySQLRow row) {
@@ -687,9 +686,9 @@ private:
 		columns_.length = 0;
 
 		auto columns = cast(size_t)packet.eatLenEnc();
-		auto header = columnDefs(columns, cmd);
+		columnDefs(columns, cmd, header_);
 		row_.length = columns;
-		row_.header(header);
+		row_.header(header_);
 
 		size_t index = 0;
 		auto statusFlags = eatEOF(retrieve());
@@ -709,8 +708,8 @@ private:
 						break;
 					}
 
-					resultSetRow(row, Commands.COM_STMT_FETCH, header, row_);
-					if (!callHandler(handler, index++, header, row_)) {
+					resultSetRow(row, Commands.COM_STMT_FETCH, header_, row_);
+					if (!callHandler(handler, index++, header_, row_)) {
 						discardUntilEOF(retrieve());
 						statusFlags = 0;
 						break;
@@ -726,8 +725,8 @@ private:
 					break;
 				}
 
-				resultSetRow(row, cmd, header, row_);
-				if (!callHandler(handler, index++, header, row_)) {
+				resultSetRow(row, cmd, header_, row_);
+				if (!callHandler(handler, index++, header_, row_)) {
 					discardUntilEOF(retrieve());
 					break;
 				}
@@ -739,7 +738,7 @@ private:
 
 	void discardAll(InputPacket packet, Commands cmd) {
 		auto columns = cast(size_t)packet.eatLenEnc();
-		auto defs = columnDefs(columns, cmd);
+		columnDefs(columns, cmd, header_);
 
 		auto statusFlags = eatEOF(retrieve());
 		if ((statusFlags & StatusFlags.SERVER_STATUS_CURSOR_EXISTS) == 0) {
