@@ -11,20 +11,39 @@ import mysql.exception;
 public import mysql.row;
 
 
+struct MySQLRawString {
+	@disable this();
+
+	this(const(char)[] data) {
+		data_ = data;
+	}
+
+	@property auto length() const {
+		return data_.length;
+	}
+
+	@property auto data() const {
+		return data_;
+	}
+
+	private const(char)[] data_;
+}
+
+
 struct MySQLBinary {
 	this(T)(T[] data) {
 		data_ = (cast(ubyte*)data.ptr)[0..typeof(T[].init[0]).sizeof * data.length];
 	}
 
-	@property size_t length() const {
+	@property auto length() const {
 		return data_.length;
 	}
 
-	@property const(ubyte)[] data() const {
+	@property auto data() const {
 		return data_;
 	}
 
-	private ubyte[] data_;
+	private const(ubyte)[] data_;
 }
 
 
