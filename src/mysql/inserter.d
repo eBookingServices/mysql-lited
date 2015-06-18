@@ -21,16 +21,16 @@ auto inserter(ConnectionType)(ConnectionType connection) {
 }
 
 
-auto inserter(ConnectionType, Args...)(ConnectionType connection, string tableName, OnDuplicate action, Args columns) {
+auto inserter(ConnectionType, Args...)(ConnectionType connection, OnDuplicate action, string tableName, Args columns) {
 	auto insert = Inserter!ConnectionType(connection);
-	insert.start(tableName, action, columns);
+	insert.start(action, tableName, columns);
 	return insert;
 }
 
 
 auto inserter(ConnectionType, Args...)(ConnectionType connection, string tableName, Args columns) {
 	auto insert = Inserter!ConnectionType(connection);
-	insert.start(tableName, OnDuplicate.Error, columns);
+	insert.start(OnDuplicate.Error, tableName, columns);
 	return insert;
 }
 
@@ -48,7 +48,11 @@ struct Inserter(ConnectionType) {
 		flush();
 	}
 
-	void start(Args...)(string tableName, OnDuplicate action, Args fieldNames) {
+	void start(Args...)(string tableName, Args fieldNames) {
+		start(OnDuplicate.Error, tableName, fieldNames);
+	}
+
+	void start(Args...)(OnDuplicate action, string tableName, Args fieldNames) {
 		fields_ = fieldNames.length;
 
 		Appender!(char[]) appender;
