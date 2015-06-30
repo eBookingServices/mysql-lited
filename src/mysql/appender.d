@@ -28,7 +28,7 @@ void appendValue(Appender, T)(ref Appender appender, T value) if (is(Unqual!T ==
 
 	formattedWrite(appender, "%04d%02d%02d", value.year, value.month, value.day);
 	if (hour | minute | second | usec) {
-		formattedWrite(appender, "%02d%02d%02d", value.day, hour, minute, second);
+		formattedWrite(appender, "%02d%02d%02d", hour, minute, second);
 		if (usec)
 			formattedWrite(appender, ".%06d", usec);
 	}
