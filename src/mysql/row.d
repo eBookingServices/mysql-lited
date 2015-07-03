@@ -183,8 +183,13 @@ struct MySQLRow {
 		return 0;
 	}
 
+	void toString(Appender)(ref Appender app) const {
+		import std.format : formattedWrite;
+		formattedWrite(&app, "%s", values_);
+	}
+
 	string toString() const {
-		import std.conv;
+		import std.conv : to;
 		return to!string(values_);
 	}
 
@@ -209,11 +214,11 @@ struct MySQLRow {
 						if (this[i].isNull)
 							continue;
 					}
-					
+
 					f = this[i].get!(Unqual!(typeof(f)));
 					continue;
 				}
-				
+
 				static if ((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) {
 					throw new MySQLErrorException("Column " ~ i ~ " is out of range for this result set");
 				}

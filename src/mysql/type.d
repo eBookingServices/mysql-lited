@@ -107,8 +107,66 @@ struct MySQLValue {
 		buffer_.ptr[0..(ubyte[]).sizeof] = (cast(ubyte*)&value.data_)[0..(ubyte[]).sizeof];
 	}
 
+	void toString(Appender)(ref Appender app) const {
+		import std.format : formattedWrite;
+
+		final switch(type_) with (ColumnTypes) {
+			case MYSQL_TYPE_NULL:
+				break;
+			case MYSQL_TYPE_TINY:
+				formattedWrite(&app, "%d", *cast(ubyte*)buffer_.ptr);
+				break;
+			case MYSQL_TYPE_YEAR:
+			case MYSQL_TYPE_SHORT:
+				formattedWrite(&app, "%d", *cast(ushort*)buffer_.ptr);
+				break;
+			case MYSQL_TYPE_INT24:
+			case MYSQL_TYPE_LONG:
+				formattedWrite(&app, "%d", *cast(uint*)buffer_.ptr);
+				break;
+			case MYSQL_TYPE_LONGLONG:
+				formattedWrite(&app, "%d", *cast(ulong*)buffer_.ptr);
+				break;
+			case MYSQL_TYPE_FLOAT:
+				formattedWrite(&app, "%g", *cast(float*)buffer_.ptr);
+				break;
+			case MYSQL_TYPE_DOUBLE:
+				formattedWrite(&app, "%g", *cast(double*)buffer_.ptr);
+				break;
+			case MYSQL_TYPE_SET:
+			case MYSQL_TYPE_ENUM:
+			case MYSQL_TYPE_VARCHAR:
+			case MYSQL_TYPE_VAR_STRING:
+			case MYSQL_TYPE_STRING:
+			case MYSQL_TYPE_NEWDECIMAL:
+			case MYSQL_TYPE_DECIMAL:
+			case MYSQL_TYPE_TINY_BLOB:
+			case MYSQL_TYPE_MEDIUM_BLOB:
+			case MYSQL_TYPE_LONG_BLOB:
+			case MYSQL_TYPE_BLOB:
+				app.put(*cast(string*)buffer_.ptr);
+				break;
+			case MYSQL_TYPE_BIT:
+			case MYSQL_TYPE_GEOMETRY:
+				formattedWrite(&app, "%s", *cast(ubyte[]*)buffer_.ptr);
+				break;
+			case MYSQL_TYPE_TIME:
+			case MYSQL_TYPE_TIME2:
+				formattedWrite(&app, "%s", (*cast(MySQLTime*)buffer_.ptr).toDuration());
+				break;
+			case MYSQL_TYPE_DATE:
+			case MYSQL_TYPE_NEWDATE:
+			case MYSQL_TYPE_DATETIME:
+			case MYSQL_TYPE_DATETIME2:
+			case MYSQL_TYPE_TIMESTAMP:
+			case MYSQL_TYPE_TIMESTAMP2:
+				formattedWrite(&app, "%s", (*cast(MySQLDateTime*)buffer_.ptr).to!DateTime());
+				break;
+		}
+	}
+
 	string toString() const {
-		import std.conv;
+		import std.conv : to;
 
 		final switch(type_) with (ColumnTypes) {
 			case MYSQL_TYPE_NULL:
@@ -134,12 +192,12 @@ struct MySQLValue {
 			case MYSQL_TYPE_STRING:
 			case MYSQL_TYPE_NEWDECIMAL:
 			case MYSQL_TYPE_DECIMAL:
-				return to!string(*cast(const(char)[]*)buffer_.ptr);
-			case MYSQL_TYPE_BIT:
 			case MYSQL_TYPE_TINY_BLOB:
 			case MYSQL_TYPE_MEDIUM_BLOB:
 			case MYSQL_TYPE_LONG_BLOB:
 			case MYSQL_TYPE_BLOB:
+				return (*cast(string*)buffer_.ptr).idup;
+			case MYSQL_TYPE_BIT:
 			case MYSQL_TYPE_GEOMETRY:
 				return to!string(*cast(ubyte[]*)buffer_.ptr);
 			case MYSQL_TYPE_TIME:
@@ -698,9 +756,6 @@ void putValue(T)(ref OutputPacket packet, T value) if (is(Unqual!T == MySQLValue
 		case MYSQL_TYPE_STRING:
 		case MYSQL_TYPE_NEWDECIMAL:
 		case MYSQL_TYPE_DECIMAL:
-			packet.putLenEnc((*cast(ubyte[]*)value.buffer_.ptr).length);
-			packet.put(*cast(ubyte[]*)value.buffer_.ptr);
-			break;
 		case MYSQL_TYPE_BIT:
 		case MYSQL_TYPE_TINY_BLOB:
 		case MYSQL_TYPE_MEDIUM_BLOB:
