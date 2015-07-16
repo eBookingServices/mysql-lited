@@ -159,21 +159,21 @@ struct Connection(SocketType) {
 	}
 
 	void begin() {
-		if (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS)
+		if (inTransaction)
 			throw new MySQLErrorException("MySQL does not support nested transactions - commit or rollback before starting a new transaction");
 
 		query("start transaction");
 
-		assert(status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS);
+		assert(inTransaction);
 	}
 
 	void commit() {
-		if ((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0)
+		if (!inTransaction)
 			throw new MySQLErrorException("No active transaction");
 
 		query("commit");
 
-		assert((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0);
+		assert(!inTransaction);
 	}
 
 	void rollback() {
@@ -183,7 +183,7 @@ struct Connection(SocketType) {
 
 			query("rollback");
 
-			assert((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0);
+			assert(!inTransaction);
 		}
 	}
 
