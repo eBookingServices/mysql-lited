@@ -1,6 +1,6 @@
 {
 	"name": "mysql-lited",
-	"description": "Lightweight native MySQL protocol implementation",
+	"description": "Lightweight native MySQL/MariaDB driver",
 	"copyright": "Copyright © 2015, Marcio Martins",
 	"authors": [ "Márcio Martins" ],
 	"license": "MIT License",

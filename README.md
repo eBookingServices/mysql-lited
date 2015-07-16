@@ -1,12 +1,12 @@
 # mysql-lited
-A lightweight native mysql driver written in D
+A lightweight native MySQL/MariaDB driver written in D
 
 The goal is a native driver that re-uses the same buffers and the stack as much as possible,
 avoiding unnecessary allocations and work for the garbage collector
 
 
 ## notes
-- supports all MySQL types with conversion from/to D types
+- supports all MySQL types with conversion from/to D native types
 - results can be  retrieved through a flexible and efficient callback interface
 - socket type is a template parameter - currently only a vibesocket is implemented
 - only the binary protocol is supported
