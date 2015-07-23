@@ -121,7 +121,7 @@ struct Connection(SocketType) {
 		auto answer = retrieve();
 
 		if (answer.peek!ubyte != StatusPackets.OK_Packet)
-			check(answer);
+			eatStatus(answer);
 
 		answer.expect!ubyte(0);
 
@@ -690,8 +690,12 @@ private:
 		row_.length = columns;
 		row_.header(header_);
 
+		auto status = retrieve();
+		if (status.peek!ubyte == StatusPackets.ERR_Packet)
+			eatStatus(status);
+
 		size_t index = 0;
-		auto statusFlags = eatEOF(retrieve());
+		auto statusFlags = eatEOF(status);
 		if (statusFlags & StatusFlags.SERVER_STATUS_CURSOR_EXISTS) {
 			uint[2] data = [ stmt, 4096 ]; // todo: make setting - rows per fetch
 			while (statusFlags & (StatusFlags.SERVER_STATUS_CURSOR_EXISTS | StatusFlags.SERVER_MORE_RESULTS_EXISTS)) {
@@ -699,7 +703,7 @@ private:
 
 				auto answer = retrieve();
 				if (answer.peek!ubyte == StatusPackets.ERR_Packet)
-					check(answer);
+					eatStatus(answer);
 
 				auto row = answer.empty ? retrieve() : answer;
 				while (true) {
