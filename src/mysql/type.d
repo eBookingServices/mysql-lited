@@ -694,7 +694,7 @@ void putValueType(T)(ref OutputPacket packet, T value) if (isSomeString!T) {
 }
 
 void putValue(T)(ref OutputPacket packet, T value) if (isSomeString!T) {
-	ulong size = value.length * ValueType.sizeof;
+	ulong size = value.length * T.init[0].sizeof;
 	packet.putLenEnc(size);
 	packet.put(value);
 }
