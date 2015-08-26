@@ -488,7 +488,7 @@ private:
 
 		reply.put!uint(caps_);
 		reply.put!uint(1);
-		reply.put!ubyte(33);
+		reply.put!ubyte(45);
 		reply.fill(0, 23);
 
 		reply.put(settings_.user);
