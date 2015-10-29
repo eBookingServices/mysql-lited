@@ -123,9 +123,11 @@ struct Inserter(ConnectionType) {
 				values_.put(cast(ubyte[])dupUpdate_);
 			}
 
-			conn_.execute(cast(char[])values_.data());
+			auto sql = cast(char[])values_.data();
 			values_.clear;
 			pending_ = 0;
+
+			conn_.execute(sql);
 			++flushes_;
 		}
 	}
