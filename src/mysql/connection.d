@@ -47,20 +47,32 @@ private struct ServerInfo {
 
 
 @property string placeholders(size_t x, bool parens = true) {
-	import std.range : repeat, take;
+	if (x) {
+		auto app = appender!string;
+		if (parens) {
+			app.reserve(x + x - 1);
 
-	if (parens)
-		return "(" ~ ("?".repeat().take(x).join(",")) ~ ")";
-	return "?".repeat.take(x).join(",");
+			app.put('(');
+			foreach (i; 0..x - 1)
+				app.put("?,");
+			app.put('?');
+			app.put(')');
+		} else {
+			app.reserve(x + x + 1);
+
+			foreach (i; 0..x - 1)
+				app.put("?,");
+			app.put('?');
+		}
+		return app.data;
+	}
+
+	return null;
 }
 
 
 @property string placeholders(T)(T[] x, bool parens = true) {
-	import std.range : repeat, take;
-
-	if (parens)
-		return "(" ~ ("?".repeat().take(x.length).join(",")) ~ ")";
-	return "?".repeat.take(x.length).join(",");
+	return x.length.placeholders;
 }
 
 
