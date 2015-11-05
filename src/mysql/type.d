@@ -443,7 +443,7 @@ struct MySQLDateTime {
 	}
 
 	T to(T)() if (is(T == SysTime)) {
-		return SysTime(DateTime(year, month, day, hour, min, sec), FracSec.from!"usecs"(usec), UTC());
+		return SysTime(DateTime(year, month, day, hour, min, sec), usec.dur!"usecs", UTC());
 	}
 
 	T to(T)() if (is(T == DateTime)) {
