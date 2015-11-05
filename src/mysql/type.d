@@ -468,7 +468,7 @@ struct MySQLDateTime {
 		time.hour = dateTime.hour;
 		time.min = dateTime.minute;
 		time.sec = dateTime.second;
-		time.usec = sysTime.fracSec.usecs;
+		time.usec = cast(int)sysTime.fracSecs.total!"usecs";
 
 		return time;
 	}
