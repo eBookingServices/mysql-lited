@@ -212,6 +212,10 @@ struct MySQLValue {
 				return (*cast(MySQLDateTime*)buffer_.ptr).to!DateTime().toString();
 		}
 	}
+	
+	T get(T)(lazy T def) const {
+		return !isNull ? get!T : def;
+	}
 
 	T get(T)() const if (isScalarType!T) {
 		switch(type_) with (ColumnTypes) {
