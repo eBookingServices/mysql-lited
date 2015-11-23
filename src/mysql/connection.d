@@ -3,6 +3,8 @@ module mysql.connection;
 
 import std.algorithm;
 import std.array;
+import std.conv : to;
+import std.regex : ctRegex, matchFirst;
 import std.string;
 import std.traits;
 
@@ -17,11 +19,13 @@ immutable CapabilityFlags DefaultClientCaps = CapabilityFlags.CLIENT_LONG_PASSWO
 
 
 struct ConnectionStatus {
-	ulong affected = 0;
-	ulong insertID = 0;
-	ushort flags = 0;
-	ushort error = 0;
-	ushort warnings = 0;
+	ulong affected;
+	ulong matched;
+	ulong changed;
+	ulong insertID;
+	ushort flags;
+	ushort error;
+	ushort warnings;
 }
 
 
@@ -319,6 +323,14 @@ struct Connection(SocketType) {
 		return cast(size_t)status_.affected;
 	}
 
+	@property ulong matched() {
+		return cast(size_t)status_.matched;
+	}
+
+	@property ulong changed() {
+		return cast(size_t)status_.changed;
+	}
+
 	@property size_t warnings() {
 		return status_.warnings;
 	}
@@ -536,11 +548,13 @@ private:
 
 		switch (id) {
 		case StatusPackets.OK_Packet:
-			status_.error = 0;
+			status_.matched = 0;
+			status_.changed = 0;
 			status_.affected = packet.eatLenEnc();
 			status_.insertID = packet.eatLenEnc();
 			status_.flags = packet.eat!ushort;
 			status_.warnings = packet.eat!ushort;
+			status_.error = 0;
 
 			if (caps_ & CapabilityFlags.CLIENT_SESSION_TRACK) {
 				info(packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc()));
@@ -553,6 +567,12 @@ private:
 			} else if (!packet.empty) {
 				auto len = cast(size_t)packet.eatLenEnc();
 				info(packet.eat!(const(char)[])(min(len, packet.remaining)));
+
+				auto matches = matchFirst(info_, ctRegex!(`\smatched:\s*(\d+)\s+changed:\s*(\d+)`, `i`));
+				if (!matches.empty) {
+					status_.matched = matches[1].to!ulong;
+					status_.changed = matches[2].to!ulong;
+				}
 			}
 
 			if (onStatus_)
@@ -560,6 +580,9 @@ private:
 
 			break;
 		case StatusPackets.EOF_Packet:
+			status_.affected = 0;
+			status_.changed = 0;
+			status_.matched = 0;
 			status_.error = 0;
 			status_.warnings = packet.eat!ushort;
 			status_.flags = packet.eat!ushort;
@@ -570,6 +593,9 @@ private:
 
 			break;
 		case StatusPackets.ERR_Packet:
+			status_.affected = 0;
+			status_.changed = 0;
+			status_.matched = 0;
 			status_.flags = 0;
 			status_.warnings = 0;
 			status_.error = packet.eat!ushort;
