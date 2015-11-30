@@ -291,6 +291,10 @@ struct MySQLValue {
 				throw new MySQLErrorException("Cannot convert MySQL value to array");
 		}
 	}
+	
+	T peek(T)(lazy T def) const {
+		return !isNull ? peek!T : def;
+	}
 
 	T peek(T)() const if (isScalarType!T) {
 		return get!T;
