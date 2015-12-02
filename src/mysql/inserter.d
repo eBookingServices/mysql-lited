@@ -58,16 +58,16 @@ struct Inserter(ConnectionType) {
 		Appender!(char[]) appender;
 
 		final switch(action) {
-			case OnDuplicate.Ignore:
-				appender.put("insert ignore into ");
-				break;
-			case OnDuplicate.Replace:
-				appender.put("replace into ");
-				break;
-			case OnDuplicate.Update:
-			case OnDuplicate.Error:
-				appender.put("insert into ");
-				break;
+		case OnDuplicate.Ignore:
+			appender.put("insert ignore into ");
+			break;
+		case OnDuplicate.Replace:
+			appender.put("replace into ");
+			break;
+		case OnDuplicate.Update:
+		case OnDuplicate.Error:
+			appender.put("insert into ");
+			break;
 		}
 
 		appender.put(tableName);

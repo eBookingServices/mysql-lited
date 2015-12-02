@@ -15,7 +15,7 @@ public import mysql.type;
 
 
 immutable CapabilityFlags DefaultClientCaps = CapabilityFlags.CLIENT_LONG_PASSWORD | CapabilityFlags.CLIENT_LONG_FLAG |
-	CapabilityFlags.CLIENT_CONNECT_WITH_DB | CapabilityFlags.CLIENT_PROTOCOL_41 | CapabilityFlags.CLIENT_SECURE_CONNECTION;
+CapabilityFlags.CLIENT_CONNECT_WITH_DB | CapabilityFlags.CLIENT_PROTOCOL_41 | CapabilityFlags.CLIENT_SECURE_CONNECTION;
 
 
 struct ConnectionStatus {
@@ -231,58 +231,58 @@ struct Connection(SocketType) {
 			throw new MySQLErrorException(format("Wrong number of parameters for query. Got 0 but expected %d.", stmt.params));
 
 		static if (argCount) {
-		enum NullsCapacity = 128; // must be power of 2
-		ubyte[NullsCapacity >> 3] nulls;
-		size_t bitsOut = 0;
-		size_t indexArg = 0;
+			enum NullsCapacity = 128; // must be power of 2
+			ubyte[NullsCapacity >> 3] nulls;
+			size_t bitsOut = 0;
+			size_t indexArg = 0;
 			foreach(i, arg; args[0..argCount]) {
-			const auto index = (indexArg >> 3) & (NullsCapacity - 1);
-			const auto bit = indexArg & 7;
+				const auto index = (indexArg >> 3) & (NullsCapacity - 1);
+				const auto bit = indexArg & 7;
 
-			static if (is(typeof(arg) == typeof(null))) {
-				nulls[index] = nulls[index] | (1 << bit);
-				++indexArg;
-			} else static if (is(Unqual!(typeof(arg)) == MySQLValue)) {
-				if (arg.isNull)
+				static if (is(typeof(arg) == typeof(null))) {
 					nulls[index] = nulls[index] | (1 << bit);
-				++indexArg;
-			} else static if (isArray!(typeof(arg)) && !isSomeString!(typeof(arg))) {
-				indexArg += arg.length;
-			} else {
-				++indexArg;
-			}
+					++indexArg;
+				} else static if (is(Unqual!(typeof(arg)) == MySQLValue)) {
+					if (arg.isNull)
+						nulls[index] = nulls[index] | (1 << bit);
+					++indexArg;
+				} else static if (isArray!(typeof(arg)) && !isSomeString!(typeof(arg))) {
+					indexArg += arg.length;
+				} else {
+					++indexArg;
+				}
 
 				auto finishing = (i == argCount - 1);
-			auto remaining = indexArg - bitsOut;
+				auto remaining = indexArg - bitsOut;
 
-			if (finishing || (remaining >= NullsCapacity)) {
-				while (remaining) {
-					auto bits = min(remaining, NullsCapacity);
+				if (finishing || (remaining >= NullsCapacity)) {
+					while (remaining) {
+						auto bits = min(remaining, NullsCapacity);
 
-					packet.put(nulls[0..(bits + 7) >> 3]);
-					bitsOut += bits;
-					nulls[] = 0;
+						packet.put(nulls[0..(bits + 7) >> 3]);
+						bitsOut += bits;
+						nulls[] = 0;
 
-					remaining = (indexArg - bitsOut);
-					if (!remaining || (!finishing && (remaining < NullsCapacity)))
-						break;
+						remaining = (indexArg - bitsOut);
+						if (!remaining || (!finishing && (remaining < NullsCapacity)))
+							break;
+					}
 				}
 			}
-		}
-		packet.put!ubyte(1);
+			packet.put!ubyte(1);
 
 			if (indexArg != stmt.params)
 				throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", indexArg, stmt.params));
 
 			foreach (arg; args[0..argCount])
-			putValueType(packet, arg);
+				putValueType(packet, arg);
 
 			foreach (arg; args[0..argCount]) {
-			static if (!is(typeof(arg) == typeof(null))) {
-				putValue(packet, arg);
+				static if (!is(typeof(arg) == typeof(null))) {
+					putValue(packet, arg);
+				}
 			}
 		}
-	}
 
 		packet.finalize(seq_);
 		++seq_;
@@ -398,23 +398,23 @@ private:
 	bool isStatus(InputPacket packet) {
 		auto id = packet.peek!ubyte;
 		switch (id) {
-			case StatusPackets.ERR_Packet:
-			case StatusPackets.OK_Packet:
-				return 1;
-			default:
-				return false;
+		case StatusPackets.ERR_Packet:
+		case StatusPackets.OK_Packet:
+			return 1;
+		default:
+			return false;
 		}
 	}
 
 	void check(InputPacket packet, bool smallError = false) {
 		auto id = packet.peek!ubyte;
 		switch (id) {
-			case StatusPackets.ERR_Packet:
-			case StatusPackets.OK_Packet:
-				eatStatus(packet, smallError);
-				break;
-			default:
-				break;
+		case StatusPackets.ERR_Packet:
+		case StatusPackets.OK_Packet:
+			eatStatus(packet, smallError);
+			break;
+		default:
+			break;
 		}
 	}
 
