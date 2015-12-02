@@ -83,6 +83,23 @@ void usedb() {
 		// auto user = row.toStruct!(User, Strict.no); // missing or null will just be ignored
 		writeln(user);
 	});
+	
+
+	// structured row with nested structs
+	struct GeoRef {
+		double lat;
+		double lng;
+	}
+	
+	struct Place {
+		string name;
+		GeoRef location;
+	}
+
+	conn.execute("select name, lat as `location.lat`, lng as `location.lng` from places", (MySQLRow row) {
+		auto place = row.toStruct!Place;
+		writeln(place.location);
+	});
 }
 ```
 
