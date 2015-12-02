@@ -120,6 +120,7 @@ enum ColumnTypes : ubyte {
 	MYSQL_TYPE_TIMESTAMP2   = 0x11,
 	MYSQL_TYPE_DATETIME2    = 0x12,
 	MYSQL_TYPE_TIME2        = 0x13,
+	MYSQL_TYPE_JSON         = 0xf5,
 	MYSQL_TYPE_NEWDECIMAL   = 0xf6,
 	MYSQL_TYPE_ENUM         = 0xf7,
 	MYSQL_TYPE_SET	        = 0xf8,
@@ -155,6 +156,7 @@ auto columnTypeName(ColumnTypes type) {
 	case MYSQL_TYPE_TIMESTAMP2:	return "timestamp2";
 	case MYSQL_TYPE_DATETIME2:	return "datetime2";
 	case MYSQL_TYPE_TIME2:		return "time2";
+	case MYSQL_TYPE_JSON:		return "json";
 	case MYSQL_TYPE_NEWDECIMAL:	return "newdecimal";
 	case MYSQL_TYPE_ENUM:		return "enum";
 	case MYSQL_TYPE_SET:		return "set";

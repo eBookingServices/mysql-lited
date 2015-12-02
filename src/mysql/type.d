@@ -3,6 +3,7 @@ module mysql.type;
 
 import std.algorithm;
 import std.datetime;
+import std.format: format;
 import std.traits;
 
 import mysql.protocol;
@@ -139,6 +140,7 @@ struct MySQLValue {
 		case MYSQL_TYPE_VARCHAR:
 		case MYSQL_TYPE_VAR_STRING:
 		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
 		case MYSQL_TYPE_NEWDECIMAL:
 		case MYSQL_TYPE_DECIMAL:
 		case MYSQL_TYPE_TINY_BLOB:
@@ -191,6 +193,7 @@ struct MySQLValue {
 		case MYSQL_TYPE_VARCHAR:
 		case MYSQL_TYPE_VAR_STRING:
 		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
 		case MYSQL_TYPE_NEWDECIMAL:
 		case MYSQL_TYPE_DECIMAL:
 		case MYSQL_TYPE_TINY_BLOB:
@@ -270,6 +273,7 @@ struct MySQLValue {
 		case MYSQL_TYPE_VARCHAR:
 		case MYSQL_TYPE_VAR_STRING:
 		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
 		case MYSQL_TYPE_NEWDECIMAL:
 		case MYSQL_TYPE_DECIMAL:
 			return (*cast(T*)buffer_.ptr).dup;
@@ -308,6 +312,7 @@ struct MySQLValue {
 		case MYSQL_TYPE_VARCHAR:
 		case MYSQL_TYPE_VAR_STRING:
 		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
 		case MYSQL_TYPE_NEWDECIMAL:
 		case MYSQL_TYPE_DECIMAL:
 			return (*cast(T*)buffer_.ptr);
@@ -595,6 +600,7 @@ MySQLValue eatValue(ref InputPacket packet, ref const MySQLColumn column) {
 	case MYSQL_TYPE_VARCHAR:
 	case MYSQL_TYPE_VAR_STRING:
 	case MYSQL_TYPE_STRING:
+	case MYSQL_TYPE_JSON:
 	case MYSQL_TYPE_NEWDECIMAL:
 	case MYSQL_TYPE_DECIMAL:
 		auto x = packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc());
@@ -751,6 +757,7 @@ void putValue(T)(ref OutputPacket packet, T value) if (is(Unqual!T == MySQLValue
 	case MYSQL_TYPE_VARCHAR:
 	case MYSQL_TYPE_VAR_STRING:
 	case MYSQL_TYPE_STRING:
+	case MYSQL_TYPE_JSON:
 	case MYSQL_TYPE_NEWDECIMAL:
 	case MYSQL_TYPE_DECIMAL:
 	case MYSQL_TYPE_BIT:
