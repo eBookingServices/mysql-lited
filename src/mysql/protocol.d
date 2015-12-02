@@ -133,6 +133,42 @@ enum ColumnTypes : ubyte {
 }
 
 
+auto columnTypeName(ColumnTypes type) {
+	final switch (type) with (ColumnTypes) {
+	case MYSQL_TYPE_DECIMAL:	return "decimal";
+	case MYSQL_TYPE_TINY:		return "tiny";
+	case MYSQL_TYPE_SHORT:		return "short";
+	case MYSQL_TYPE_LONG:		return "long";
+	case MYSQL_TYPE_FLOAT:		return "float";
+	case MYSQL_TYPE_DOUBLE:		return "double";
+	case MYSQL_TYPE_NULL:		return "null";
+	case MYSQL_TYPE_TIMESTAMP:	return "timestamp";
+	case MYSQL_TYPE_LONGLONG:	return "longlong";
+	case MYSQL_TYPE_INT24:		return "int24";
+	case MYSQL_TYPE_DATE:		return "date";
+	case MYSQL_TYPE_TIME:		return "time";
+	case MYSQL_TYPE_DATETIME:	return "datetime";
+	case MYSQL_TYPE_YEAR:		return "year";
+	case MYSQL_TYPE_NEWDATE:	return "newdate";
+	case MYSQL_TYPE_VARCHAR:	return "varchar";
+	case MYSQL_TYPE_BIT:		return "bit";
+	case MYSQL_TYPE_TIMESTAMP2:	return "timestamp2";
+	case MYSQL_TYPE_DATETIME2:	return "datetime2";
+	case MYSQL_TYPE_TIME2:		return "time2";
+	case MYSQL_TYPE_NEWDECIMAL:	return "newdecimal";
+	case MYSQL_TYPE_ENUM:		return "enum";
+	case MYSQL_TYPE_SET:		return "set";
+	case MYSQL_TYPE_TINY_BLOB:	return "tiny_blob";
+	case MYSQL_TYPE_MEDIUM_BLOB:return "medium_blob";
+	case MYSQL_TYPE_LONG_BLOB:	return "long_blob";
+	case MYSQL_TYPE_BLOB:		return "blob";
+	case MYSQL_TYPE_VAR_STRING:	return "var_string";
+	case MYSQL_TYPE_STRING:		return "string";
+	case MYSQL_TYPE_GEOMETRY:	return "geometry";
+	}
+}
+
+
 enum FieldFlags : ushort {
 	NOT_NULL_FLAG           = 0x0001, //  Field cannot be NULL
 	PRI_KEY_FLAG	        = 0x0002, //  Field is part of a primary key
