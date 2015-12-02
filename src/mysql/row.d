@@ -127,11 +127,15 @@ struct MySQLRow {
 		values_[index].nullify();
 	}
 
-	package @property length(size_t x) {
+	package @property void length(size_t x) {
 		values_.length = x;
 	}
 
-	@property length() const {
+	@property size_t length() const {
+		return values_.length;
+	}
+	
+	@property size_t opDollar() const {
 		return values_.length;
 	}
 
