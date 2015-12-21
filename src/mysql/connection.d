@@ -173,6 +173,58 @@ struct Connection(SocketType) {
 		execute(id, args);
 		close(id);
 	}
+	
+	void set(T)(const(char)[] variable, T value) {
+		static if (isScalarType!T) {
+			query(format("set session %s=%s;", variable, value));
+		} else {
+			query(format("set session %s='%s';", variable, value));
+		}
+	}
+
+	const(char)[] get(const(char)[] variable) {
+		send(Commands.COM_QUERY, format("show session variables like '%s';", variable));
+
+		const(char)[] result;
+
+		// partial implementation of the text protocol
+		auto answer = retrieve();
+		if (isStatus(answer))
+			eatStatus(answer);
+
+		auto columns = answer.eatLenEnc();
+		if (columns) {
+			MySQLColumn def;
+			foreach (i; 0..columns)
+				skipColumnDef(retrieve(), Commands.COM_QUERY);
+
+			eatEOF(retrieve());
+
+			while (true) {
+				auto row = retrieve();
+				if (row.peek!ubyte == StatusPackets.EOF_Packet) {
+					eatEOF(row);
+					break;
+				} else if (row.peek!ubyte == StatusPackets.ERR_Packet) {
+					eatStatus(row);
+					break;
+				}
+
+				foreach(i; 0..columns) {
+					if (row.peek!ubyte != 0xfb) {
+						auto length = row.eatLenEnc();
+						auto value = row.eat!(const(char)[])(min(row.remaining, length));
+						if (i == 1)
+							result = value;
+					} else {
+						// null
+					}
+				}
+			}
+		}
+
+		return result;
+	}
 
 	void begin() {
 		if (inTransaction)
