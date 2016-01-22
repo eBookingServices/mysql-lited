@@ -29,7 +29,7 @@ void usedb() {
 
 
 	// simple insert statement
-	conn.execute("into users (name, email) values (?, ?)", "frank", "thetank@cowabanga.com");
+	conn.execute("insert into users (name, email) values (?, ?)", "frank", "thetank@cowabanga.com");
 	auto id = conn.insertID;
 
 	struct User {
