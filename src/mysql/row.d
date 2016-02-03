@@ -61,80 +61,6 @@ private bool equalsCI(const(char)[]x, const(char)[] y) {
 
 
 struct MySQLRow {
-	package void header(MySQLHeader header) {
-		auto headerLen = header.length;
-		auto idealLen = (headerLen + (headerLen >> 2));
-		auto indexLen = index_.length;
-
-		index_[] = 0;
-
-		if (indexLen < idealLen) {
-			indexLen = max(32, indexLen);
-
-			while (indexLen < idealLen)
-				indexLen <<= 1;
-
-			index_.length = indexLen;
-		}
-
-		auto mask = (indexLen - 1);
-		assert((indexLen & mask) == 0);
-
-		names_.length = headerLen;
-		foreach (index, ref column; header) {
-			names_[index] = column.name;
-
-			auto hash = hashOf(column.name) & mask;
-			auto probe = 1;
-
-			while (true) {
-				if (index_[hash] == 0) {
-					index_[hash] = cast(uint)index + 1;
-					break;
-				}
-
-				hash = (hash + probe++) & mask;
-			}
-		}
-	}
-
-	private uint find(uint hash, const(char)[] key) const {
-		if (auto mask = index_.length - 1) {
-			assert((index_.length & mask) == 0);
-
-			hash = hash & mask;
-			auto probe = 1;
-
-			while (true) {
-				auto index = index_[hash];
-				if (index) {
-					if (names_[index - 1].equalsCI(key))
-						return index;
-					hash = (hash + probe++) & mask;
-				} else {
-					break;
-				}
-			}
-		}
-		return 0;
-	}
-
-	package void set(size_t index, MySQLValue x) {
-		values_[index] = x;
-	}
-
-	package void nullify(size_t index) {
-		values_[index].nullify();
-	}
-
-	package @property void length(size_t x) {
-		values_.length = x;
-	}
-
-	@property size_t length() const {
-		return values_.length;
-	}
-	
 	@property size_t opDollar() const {
 		return values_.length;
 	}
@@ -143,20 +69,20 @@ struct MySQLRow {
 		return names_;
 	}
 
-	@property MySQLValue opDispatch(string key)() const {
+	@property ref auto opDispatch(string key)() const {
 		enum hash = hashOf(key);
-		if (auto index = find(hash, key))
+		if (auto index = find_(hash, key))
 			return opIndex(index - 1);
 		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
 	}
 
-	MySQLValue opIndex(string key) const {
-		if (auto index = find(key.hashOf, key))
+	ref auto opIndex(string key) const {
+		if (auto index = find_(key.hashOf, key))
 			return values_[index - 1];
 		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
 	}
 
-	MySQLValue opIndex(size_t index) const {
+	ref auto opIndex(size_t index) const {
 		return values_[index];
 	}
 
@@ -238,6 +164,70 @@ struct MySQLRow {
 		return result;
 	}
 
+package:
+	void header_(MySQLHeader header) {
+		auto headerLen = header.length;
+		auto idealLen = (headerLen + (headerLen >> 2));
+		auto indexLen = index_.length;
+
+		index_[] = 0;
+
+		if (indexLen < idealLen) {
+			indexLen = max(32, indexLen);
+
+			while (indexLen < idealLen)
+				indexLen <<= 1;
+
+			index_.length = indexLen;
+		}
+
+		auto mask = (indexLen - 1);
+		assert((indexLen & mask) == 0);
+
+		names_.length = headerLen;
+		values_.length = headerLen;
+		foreach (index, ref column; header) {
+			names_[index] = column.name;
+
+			auto hash = hashOf(column.name) & mask;
+			auto probe = 1;
+
+			while (true) {
+				if (index_[hash] == 0) {
+					index_[hash] = cast(uint)index + 1;
+					break;
+				}
+
+				hash = (hash + probe++) & mask;
+			}
+		}
+	}
+
+	uint find_(uint hash, const(char)[] key) const {
+		if (auto mask = index_.length - 1) {
+			assert((index_.length & mask) == 0);
+
+			hash = hash & mask;
+			auto probe = 1;
+
+			while (true) {
+				auto index = index_[hash];
+				if (index) {
+					if (names_[index - 1].equalsCI(key))
+						return index;
+					hash = (hash + probe++) & mask;
+				} else {
+					break;
+				}
+			}
+		}
+		return 0;
+	}
+
+	ref auto get_(size_t index) {
+		return values_[index];
+	}
+
 private:
 	void structurize(T, Strict strict = Strict.yesIgnoreNull, string path = null)(ref T result) {
 		foreach(member; __traits(allMembers, T)) {
@@ -251,7 +241,7 @@ private:
 				} else {
 					enum hash = pathMember.hashOf;
 
-					if (auto index = find(hash, pathMember)) {
+					if (auto index = find_(hash, pathMember)) {
 						auto pvalue = values_[index - 1];
 
 						static if ((strict == Strict.no) || (strict == Strict.yesIgnoreNull)) {

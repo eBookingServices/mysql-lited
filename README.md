@@ -9,7 +9,7 @@ avoiding unnecessary allocations and work for the garbage collector
 - supports all MySQL types with conversion from/to D native types
 - results can be  retrieved through a flexible and efficient callback interface
 - socket type is a template parameter - currently only a vibesocket is implemented
-- only the binary protocol is supported
+- both the text and the binary protocol are supported
 
 
 ## example

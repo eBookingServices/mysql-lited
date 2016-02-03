@@ -7,7 +7,9 @@ import std.conv : to;
 import std.regex : ctRegex, matchFirst;
 import std.string;
 import std.traits;
+import std.utf : decode, UseReplacementDchar;
 
+import mysql.appender;
 public import mysql.exception;
 import mysql.packet;
 import mysql.protocol;
@@ -166,62 +168,39 @@ struct Connection(SocketType) {
 		return PreparedStatement(id, params);
 	}
 
-	void execute(Args...)(const(char)[] stmt, Args args) {
+	void execute(Args...)(const(char)[] sql, Args args) {
 		scope(failure) disconnect();
 
-		auto id = prepare(stmt);
-		execute(id, args);
-		close(id);
-	}
-	
-	void set(T)(const(char)[] variable, T value) {
-		static if (isScalarType!T) {
-			query(format("set session %s=%s;", variable, value));
+		static if (args.length == 0) {
+			enum shouldDiscard = true;
 		} else {
-			query(format("set session %s='%s';", variable, value));
+			enum shouldDiscard = !isCallable!(args[args.length - 1]);
 		}
+
+		enum argCount = shouldDiscard ? args.length : (args.length - 1);
+		send(Commands.COM_QUERY, prepareSQL(sql, args[0..argCount]));
+
+		auto answer = retrieve();
+		if (isStatus(answer)) {
+			eatStatus(answer);
+		} else {
+			static if (!shouldDiscard) {
+				resultSetText(answer, Commands.COM_QUERY, args[args.length - 1]);
+			} else {
+				discardAll(answer, Commands.COM_QUERY);
+			}
+		}
+	}
+
+	void set(T)(const(char)[] variable, T value) {
+		execute("set session ?=?", MySQLFragment(variable), value);
 	}
 
 	const(char)[] get(const(char)[] variable) {
-		send(Commands.COM_QUERY, format("show session variables like '%s';", variable));
-
 		const(char)[] result;
-
-		// partial implementation of the text protocol
-		auto answer = retrieve();
-		if (isStatus(answer))
-			eatStatus(answer);
-
-		auto columns = answer.eatLenEnc();
-		if (columns) {
-			MySQLColumn def;
-			foreach (i; 0..columns)
-				skipColumnDef(retrieve(), Commands.COM_QUERY);
-
-			eatEOF(retrieve());
-
-			while (true) {
-				auto row = retrieve();
-				if (row.peek!ubyte == StatusPackets.EOF_Packet) {
-					eatEOF(row);
-					break;
-				} else if (row.peek!ubyte == StatusPackets.ERR_Packet) {
-					eatStatus(row);
-					break;
-				}
-
-				foreach(i; 0..columns) {
-					if (row.peek!ubyte != 0xfb) {
-						auto length = row.eatLenEnc();
-						auto value = row.eat!(const(char)[])(min(row.remaining, length));
-						if (i == 1)
-							result = value;
-					} else {
-						// null
-					}
-				}
-			}
-		}
+		execute("show session variables like ?", variable, (MySQLRow row) {
+			result = row[1].peek!(const(char)[]).dup;
+		});
 
 		return result;
 	}
@@ -230,7 +209,7 @@ struct Connection(SocketType) {
 		if (inTransaction)
 			throw new MySQLErrorException("MySQL does not support nested transactions - commit or rollback before starting a new transaction");
 
-		query("start transaction");
+		execute("start transaction");
 
 		assert(inTransaction);
 	}
@@ -239,7 +218,7 @@ struct Connection(SocketType) {
 		if (!inTransaction)
 			throw new MySQLErrorException("No active transaction");
 
-		query("commit");
+		execute("commit");
 
 		assert(!inTransaction);
 	}
@@ -249,7 +228,7 @@ struct Connection(SocketType) {
 			if ((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0)
 				throw new MySQLErrorException("No active transaction");
 
-			query("rollback");
+			execute("rollback");
 
 			assert(!inTransaction);
 		}
@@ -432,14 +411,6 @@ private:
 		socket_.write(header.get());
 		if (length)
 			socket_.write(data[0..length]);
-	}
-
-	void query(const(char)[] sql) {
-		send(Commands.COM_QUERY, sql);
-
-		auto answer = retrieve();
-		if (isStatus(answer))
-			eatStatus(answer);
 	}
 
 	void ensureConnected() {
@@ -718,24 +689,6 @@ private:
 			columnDef(retrieve(), cmd, defs[i]);
 	}
 
-	void resultSetRow(InputPacket packet, Commands cmd, MySQLHeader header, MySQLRow row) {
-		assert(row.length == header.length);
-
-		packet.expect!ubyte(0);
-		auto nulls = packet.eat!(ubyte[])((header.length + 2 + 7) >> 3);
-		foreach (i, column; header) {
-			const auto index = (i + 2) >> 3; // bit offset of 2
-			const auto bit = (i + 2) & 7;
-
-			if ((nulls[index] & (1 << bit)) == 0) {
-				row.set(i, eatValue(packet, column));
-			} else {
-				row.nullify(i);
-			}
-		}
-		assert(packet.empty);
-	}
-
 	bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 1) && is(ParameterTypeTuple!(RowHandler)[0] == MySQLRow)) {
 		static if (is(ReturnType!(RowHandler) == void)) {
 			handler(row);
@@ -772,13 +725,31 @@ private:
 		}
 	}
 
+	void resultSetRow(InputPacket packet, Commands cmd, MySQLHeader header, ref MySQLRow row) {
+		assert(row.columns.length == header.length);
+
+		packet.expect!ubyte(0);
+		auto nulls = packet.eat!(ubyte[])((header.length + 2 + 7) >> 3);
+		foreach (i, ref column; header) {
+			const auto index = (i + 2) >> 3; // bit offset of 2
+			const auto bit = (i + 2) & 7;
+
+			if ((nulls[index] & (1 << bit)) == 0) {
+				eatValue(packet, column, row.get_(i));
+			} else {
+				auto signed = (column.flags & FieldFlags.UNSIGNED_FLAG) == 0;
+				row.get_(i) = MySQLValue(column.name, ColumnTypes.MYSQL_TYPE_NULL, signed, null, 0);
+			}
+		}
+		assert(packet.empty);
+	}
+
 	void resultSet(RowHandler)(InputPacket packet, uint stmt, Commands cmd, RowHandler handler) {
 		columns_.length = 0;
 
 		auto columns = cast(size_t)packet.eatLenEnc();
 		columnDefs(columns, cmd, header_);
-		row_.length = columns;
-		row_.header(header_);
+		row_.header_(header_);
 
 		auto status = retrieve();
 		if (status.peek!ubyte == StatusPackets.ERR_Packet)
@@ -812,8 +783,8 @@ private:
 				}
 			}
 		} else {
-			auto row = retrieve();
 			while (true) {
+				auto row = retrieve();
 				if (row.peek!ubyte == StatusPackets.EOF_Packet) {
 					eatEOF(row);
 					break;
@@ -824,8 +795,49 @@ private:
 					discardUntilEOF(retrieve());
 					break;
 				}
+			}
+		}
+	}
 
-				row = retrieve();
+	void resultSetRowText(InputPacket packet, Commands cmd, MySQLHeader header, ref MySQLRow row) {
+		assert(row.columns.length == header.length);
+
+		foreach(i, ref column; header) {
+			if (packet.peek!ubyte != 0xfb) {
+				eatValueText(packet, column, row.get_(i));
+			} else {
+				packet.skip(1);
+				auto signed = (column.flags & FieldFlags.UNSIGNED_FLAG) == 0;
+				row.get_(i) = MySQLValue(column.name, ColumnTypes.MYSQL_TYPE_NULL, signed, null, 0);
+			}
+		}
+		assert(packet.empty);
+	}
+
+	void resultSetText(RowHandler)(InputPacket packet, Commands cmd, RowHandler handler) {
+		columns_.length = 0;
+
+		auto columns = cast(size_t)packet.eatLenEnc();
+		columnDefs(columns, cmd, header_);
+		row_.header_(header_);
+
+		eatEOF(retrieve());
+
+		size_t index = 0;
+		while (true) {
+			auto row = retrieve();
+			if (row.peek!ubyte == StatusPackets.EOF_Packet) {
+				eatEOF(row);
+				break;
+			} else if (row.peek!ubyte == StatusPackets.ERR_Packet) {
+				eatStatus(row);
+				break;
+			}
+
+			resultSetRowText(row, cmd, header_, row_);
+			if (!callHandler(handler, index++, header_, row_)) {
+				discardUntilEOF(retrieve());
+				break;
 			}
 		}
 	}
@@ -870,6 +882,109 @@ private:
 			onStatus_(status_, info_);
 
 		return status_.flags;
+	}
+
+	auto prepareSQL(Args...)(const(char)[] sql, Args args) {
+		auto estimated = sql.length;
+		size_t argCount;
+
+		foreach(i, arg; args) {
+			static if (is(typeof(arg) == typeof(null))) {
+				++argCount;
+				estimated += 4;
+			} else static if (is(Unqual!(typeof(arg)) == MySQLValue)) {
+				++argCount;
+				final switch(arg.type) with (ColumnTypes) {
+				case MYSQL_TYPE_NULL:
+					estimated += 4;
+					break;
+				case MYSQL_TYPE_TINY:
+					estimated += 4;
+					break;
+				case MYSQL_TYPE_YEAR:
+				case MYSQL_TYPE_SHORT:
+					estimated += 6;
+					break;
+				case MYSQL_TYPE_INT24:
+				case MYSQL_TYPE_LONG:
+					estimated += 6;
+					break;
+				case MYSQL_TYPE_LONGLONG:
+					estimated += 8;
+					break;
+				case MYSQL_TYPE_FLOAT:
+					estimated += 8;
+					break;
+				case MYSQL_TYPE_DOUBLE:
+					estimated += 8;
+					break;
+				case MYSQL_TYPE_SET:
+				case MYSQL_TYPE_ENUM:
+				case MYSQL_TYPE_VARCHAR:
+				case MYSQL_TYPE_VAR_STRING:
+				case MYSQL_TYPE_STRING:
+				case MYSQL_TYPE_JSON:
+				case MYSQL_TYPE_NEWDECIMAL:
+				case MYSQL_TYPE_DECIMAL:
+				case MYSQL_TYPE_TINY_BLOB:
+				case MYSQL_TYPE_MEDIUM_BLOB:
+				case MYSQL_TYPE_LONG_BLOB:
+				case MYSQL_TYPE_BLOB:
+				case MYSQL_TYPE_BIT:
+				case MYSQL_TYPE_GEOMETRY:
+					estimated += 2 + arg.peek!(const(char)[]).length;
+					break;
+				case MYSQL_TYPE_TIME:
+				case MYSQL_TYPE_TIME2:
+					estimated += 18;
+					break;
+				case MYSQL_TYPE_DATE:
+				case MYSQL_TYPE_NEWDATE:
+				case MYSQL_TYPE_DATETIME:
+				case MYSQL_TYPE_DATETIME2:
+				case MYSQL_TYPE_TIMESTAMP:
+				case MYSQL_TYPE_TIMESTAMP2:
+					estimated += 20;
+					break;
+				}
+			} else static if (isArray!(typeof(arg)) && !isSomeString!(typeof(arg))) {
+				argCount += arg.length;
+				estimated += arg.length * 6;
+			} else static if (isSomeString!(typeof(arg)) || is(Unqual!(typeof(arg)) == MySQLRawString) || is(Unqual!(typeof(arg)) == MySQLFragment) || is(Unqual!(typeof(arg)) == MySQLBinary)) {
+				++argCount;
+				estimated += 2 + arg.length;
+			} else {
+				++argCount;
+				estimated += 6;
+			}
+		}
+
+		sql_.clear;
+		sql_.reserve(max(8192, estimated));
+
+		alias AppendFunc = bool function(ref Appender!(char[]), ref const(char)[] sql, ref size_t, const(void)*) @safe pure nothrow;
+		AppendFunc[Args.length] funcs;
+		const(void)*[Args.length] addrs;
+
+		foreach (i, Arg; Args) {
+			funcs[i] = () @trusted { return cast(AppendFunc)&appendNextValue!(Arg); }();
+			addrs[i] = (ref x)@trusted{ return cast(const void*)&x; }(args[i]);
+		}
+
+		size_t indexArg;
+		foreach (i; 0..Args.length) {
+			if (!funcs[i](sql_, sql, indexArg, addrs[i]))
+				throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", argCount, indexArg));
+		}
+
+		if (copyUpToNext(sql_, sql)) {
+			++indexArg;
+			while (copyUpToNext(sql_, sql))
+				++indexArg;
+			throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", argCount, indexArg));
+		}
+
+		return sql_.data;
 	}
 
 	void connectionSettings(const(char)[] connectionString) {
@@ -924,10 +1039,112 @@ private:
 	ubyte[] in_;
 	ubyte[] out_;
 	ubyte seq_ = 0;
+	Appender!(char[]) sql_;
 
 	OnStatusCallback onStatus_;
 	CapabilityFlags caps_;
 	ConnectionStatus status_;
 	ConnectionSettings settings_;
 	ServerInfo server_;
+}
+
+private auto copyUpToNext(ref Appender!(char[]) app, ref const(char)[] sql) {
+	size_t offset;
+	dchar quote = '\0';
+
+	while (offset < sql.length) {
+		auto ch = decode!(UseReplacementDchar.no)(sql, offset);
+		switch (ch) {
+		case '?':
+			if (!quote) {
+				app.put(sql[0..offset - 1]);
+				sql = sql[offset..$];
+				return true;
+			} else {
+				goto default;
+			}
+		case '\'':
+		case '\"':
+		case '`':
+			if (quote == ch) {
+				quote = '\0';
+			} else if (!quote) {
+				quote = ch;
+			}
+			goto default;
+		case '\\':
+			if (quote && (offset < sql.length))
+				decode!(UseReplacementDchar.no)(sql, offset);
+			goto default;
+		default:
+			break;
+		}
+	}
+	app.put(sql[0..offset]);
+	sql = sql[offset..$];
+	return false;
+}
+
+// poor man's solution to avoid slowing down SQL
+private bool skipQuotes(T)(ref Appender!(char[]) app, ref T value) {
+	auto tail = app.data.stripRight;
+	if (tail.length >= 5) {
+		static if (is(Unqual!T == MySQLValue)) {
+			switch (value.type) with (ColumnTypes) {
+			case MYSQL_TYPE_VARCHAR:
+			case MYSQL_TYPE_VAR_STRING:
+			case MYSQL_TYPE_STRING:
+				if (!isNumeric(value.peek!string))
+					return false;
+				break;
+			default:
+				return false;
+			}
+		}
+
+		if (icmp(tail[$-min($, 5)..$], "limit") == 0)
+			return true;
+		if (icmp(tail[$-min($, 6)..$], "offset") == 0)
+			return true;
+	}
+	return false;
+}
+
+private void appendQuotableValue(T)(ref Appender!(char[]) app, ref const(char)[] sql, ref T value) {
+	static if (isSomeString!(Unqual!T) || is(Unqual!T == MySQLRawString) || is(Unqual!T == MySQLValue)) {
+		if (!skipQuotes(app, value)) {
+			appendValue(app, value);
+		} else {
+			static if (isSomeString!(Unqual!T)) {
+				appendValue(app, MySQLFragment(value));
+			} else static if (is(Unqual!T == MySQLRawString)) {
+				appendValue(app, MySQLFragment(value.data));
+			} else static if (is(Unqual!T == MySQLValue)) {
+				appendValue(app, MySQLFragment(value.peek!string));
+			}
+		}
+	} else {
+		appendValue(app, value);
+	}
+}
+
+private bool appendNextValue(T)(ref Appender!(char[]) app, ref const(char)[] sql, ref size_t indexArg, const(void)* arg) {
+	static if (isArray!T && !isSomeString!T) {
+		foreach (i, ref v; *cast(T*)arg) {
+			if (copyUpToNext(app, sql)) {
+				appendQuotableValue(app, sql, v);
+				++indexArg;
+			} else {
+				return false;
+			}
+		}
+	} else {
+		if (copyUpToNext(app, sql)) {
+			appendQuotableValue(app, sql, *cast(T*)arg);
+			++indexArg;
+		} else {
+			return false;
+		}
+	}
+	return true;
 }

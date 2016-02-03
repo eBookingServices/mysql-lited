@@ -67,6 +67,10 @@ void appendValue(Appender, T)(ref Appender appender, T value) if (is(Unqual!T ==
 		appender.put('\'');
 }
 
+void appendValue(Appender, T)(ref Appender appender, T value) if (is(Unqual!T == MySQLFragment)) {
+	appender.put(cast(char[])value.data);
+}
+
 void appendValue(Appender, T)(ref Appender appender, T value) if (is(Unqual!T == MySQLRawString)) {
 	appender.put('\'');
 	appender.put(cast(char[])value.data);
@@ -123,6 +127,7 @@ void appendValue(Appender, T)(ref Appender appender, T value) if (is(Unqual!T ==
 	case MYSQL_TYPE_VARCHAR:
 	case MYSQL_TYPE_VAR_STRING:
 	case MYSQL_TYPE_STRING:
+	case MYSQL_TYPE_JSON:
 	case MYSQL_TYPE_NEWDECIMAL:
 	case MYSQL_TYPE_DECIMAL:
 		appendValue(appender, value.peek!(char[]));
