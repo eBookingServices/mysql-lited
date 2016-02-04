@@ -89,7 +89,14 @@ package:
 }
 
 
-struct Connection(SocketType) {
+enum ConnectionOptions {
+	TextProtocol				= 1 << 0, // Execute method uses the MySQL text protocol under the hood - it's less safe but can increase performance in some situations
+	TextProtocolCheckNoArgs		= 1 << 1, // Check for orphan placeholders even if arguments are passed
+	Default						= 0
+}
+
+
+struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Default) {
 	void connect(string connectionString) {
 		connectionSettings(connectionString);
 		connect();
@@ -169,36 +176,24 @@ struct Connection(SocketType) {
 	}
 
 	void execute(Args...)(const(char)[] sql, Args args) {
-		scope(failure) disconnect();
-
-		static if (args.length == 0) {
-			enum shouldDiscard = true;
+		static if (Options & ConnectionOptions.TextProtocol) {
+			query(sql, args);
 		} else {
-			enum shouldDiscard = !isCallable!(args[args.length - 1]);
-		}
+			scope(failure) disconnect();
 
-		enum argCount = shouldDiscard ? args.length : (args.length - 1);
-		send(Commands.COM_QUERY, prepareSQL(sql, args[0..argCount]));
-
-		auto answer = retrieve();
-		if (isStatus(answer)) {
-			eatStatus(answer);
-		} else {
-			static if (!shouldDiscard) {
-				resultSetText(answer, Commands.COM_QUERY, args[args.length - 1]);
-			} else {
-				discardAll(answer, Commands.COM_QUERY);
-			}
+			auto id = prepare(sql);
+			execute(id, args);
+			close(id);
 		}
 	}
 
 	void set(T)(const(char)[] variable, T value) {
-		execute("set session ?=?", MySQLFragment(variable), value);
+		query("set session ?=?", MySQLFragment(variable), value);
 	}
 
 	const(char)[] get(const(char)[] variable) {
 		const(char)[] result;
-		execute("show session variables like ?", variable, (MySQLRow row) {
+		query("show session variables like ?", variable, (MySQLRow row) {
 			result = row[1].peek!(const(char)[]).dup;
 		});
 
@@ -209,7 +204,7 @@ struct Connection(SocketType) {
 		if (inTransaction)
 			throw new MySQLErrorException("MySQL does not support nested transactions - commit or rollback before starting a new transaction");
 
-		execute("start transaction");
+		query("start transaction");
 
 		assert(inTransaction);
 	}
@@ -218,7 +213,7 @@ struct Connection(SocketType) {
 		if (!inTransaction)
 			throw new MySQLErrorException("No active transaction");
 
-		execute("commit");
+		query("commit");
 
 		assert(!inTransaction);
 	}
@@ -228,7 +223,7 @@ struct Connection(SocketType) {
 			if ((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0)
 				throw new MySQLErrorException("No active transaction");
 
-			execute("rollback");
+			query("rollback");
 
 			assert(!inTransaction);
 		}
@@ -387,6 +382,35 @@ struct Connection(SocketType) {
 	}
 
 private:
+	void query(Args...)(const(char)[] sql, Args args) {
+		scope(failure) disconnect();
+
+		static if (args.length == 0) {
+			enum shouldDiscard = true;
+		} else {
+			enum shouldDiscard = !isCallable!(args[args.length - 1]);
+		}
+
+		enum argCount = shouldDiscard ? args.length : (args.length - 1);
+
+		static if (argCount || (Options & ConnectionOptions.TextProtocolCheckNoArgs)) {
+			send(Commands.COM_QUERY, prepareSQL(sql, args[0..argCount]));
+		} else {
+			send(Commands.COM_QUERY, sql);
+		}
+
+		auto answer = retrieve();
+		if (isStatus(answer)) {
+			eatStatus(answer);
+		} else {
+			static if (!shouldDiscard) {
+				resultSetText(answer, Commands.COM_QUERY, args[args.length - 1]);
+			} else {
+				discardAll(answer, Commands.COM_QUERY);
+			}
+		}
+	}
+	
 	void connect() {
 		socket_.connect(settings_.host, settings_.port);
 

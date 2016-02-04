@@ -6,10 +6,10 @@ public import mysql.connection;
 import mysql.socket;
 
 
-final class MySQLClientT(SocketType) {
+final class MySQLClientT(SocketType, ConnectionOptions Options = ConnectionOptions.Default) {
 	this(string connectionString) {
-		connections_ = new ConnectionPool!(Connection!SocketType*)({
-			auto ret = new Connection!SocketType();
+		connections_ = new ConnectionPoolType({
+			auto ret = new ConnectionType();
 			ret.connect(connectionString);
 			return ret;
 		});
@@ -18,8 +18,8 @@ final class MySQLClientT(SocketType) {
 	}
 
 	this(string host, ushort port, string user, string pwd, string db) {
-		connections_ = new ConnectionPool!ConnectionType({
-			auto ret = new Connection!SocketType();
+		connections_ = new ConnectionPoolType({
+			auto ret = new ConnectionType();
 			ret.connect(host, port, user, pwd, db);
 			return ret;
 		});
@@ -35,8 +35,9 @@ final class MySQLClientT(SocketType) {
 		return connection;
 	}
 
-	package alias ConnectionType = Connection!VibeSocket*;
-	private ConnectionPool!(Connection!SocketType*) connections_;
+	package alias ConnectionType = Connection!(VibeSocket, Options);
+	package alias ConnectionPoolType = ConnectionPool!(ConnectionType*);
+	private ConnectionPoolType connections_;
 }
 
 alias MySQLClient = MySQLClientT!VibeSocket;
