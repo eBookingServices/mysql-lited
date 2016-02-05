@@ -1062,7 +1062,7 @@ private:
 	char[] info_;
 	ubyte[] in_;
 	ubyte[] out_;
-	ubyte seq_ = 0;
+	ubyte seq_;
 	Appender!(char[]) sql_;
 
 	OnStatusCallback onStatus_;
@@ -1109,7 +1109,7 @@ private auto copyUpToNext(ref Appender!(char[]) app, ref const(char)[] sql) {
 	return false;
 }
 
-// poor man's solution to avoid slowing down SQL
+// poor man's solution to avoid parsing SQL
 private bool skipQuotes(T)(ref Appender!(char[]) app, ref T value) {
 	auto tail = app.data.stripRight;
 	if (tail.length >= 5) {
