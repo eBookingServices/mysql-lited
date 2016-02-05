@@ -4,6 +4,10 @@ import vibe.core.net;
 
 
 struct VibeSocket {
+	~this() {
+		close();
+	}
+
 	void connect(const(char)[] host, ushort port) {
 		socket_ = connectTCP(cast(string)host, port);
 		socket_.keepAlive = true;
@@ -14,7 +18,10 @@ struct VibeSocket {
 	}
 
 	void close() {
-		socket_.close();
+		if (socket_) {
+			socket_.close();
+			socket_ = null;
+		}
 	}
 
 	void read(ubyte[] buffer) {

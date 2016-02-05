@@ -13,8 +13,6 @@ final class MySQLClientT(SocketType, ConnectionOptions Options = ConnectionOptio
 			ret.connect(connectionString);
 			return ret;
 		});
-
-		lockConnection();
 	}
 
 	this(string host, ushort port, string user, string pwd, string db) {
@@ -23,8 +21,6 @@ final class MySQLClientT(SocketType, ConnectionOptions Options = ConnectionOptio
 			ret.connect(host, port, user, pwd, db);
 			return ret;
 		});
-
-		lockConnection();
 	}
 
 	auto lockConnection() {
