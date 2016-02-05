@@ -410,7 +410,7 @@ private:
 			}
 		}
 	}
-	
+
 	void connect() {
 		socket_.connect(settings_.host, settings_.port);
 
@@ -1109,54 +1109,11 @@ private auto copyUpToNext(ref Appender!(char[]) app, ref const(char)[] sql) {
 	return false;
 }
 
-// poor man's solution to avoid parsing SQL
-private bool skipQuotes(T)(ref Appender!(char[]) app, ref T value) {
-	auto tail = app.data.stripRight;
-	if (tail.length >= 5) {
-		static if (is(Unqual!T == MySQLValue)) {
-			switch (value.type) with (ColumnTypes) {
-			case MYSQL_TYPE_VARCHAR:
-			case MYSQL_TYPE_VAR_STRING:
-			case MYSQL_TYPE_STRING:
-				if (!isNumeric(value.peek!string))
-					return false;
-				break;
-			default:
-				return false;
-			}
-		}
-
-		if (icmp(tail[$-min($, 5)..$], "limit") == 0)
-			return true;
-		if (icmp(tail[$-min($, 6)..$], "offset") == 0)
-			return true;
-	}
-	return false;
-}
-
-private void appendQuotableValue(T)(ref Appender!(char[]) app, ref const(char)[] sql, ref T value) {
-	static if (isSomeString!(Unqual!T) || is(Unqual!T == MySQLRawString) || is(Unqual!T == MySQLValue)) {
-		if (!skipQuotes(app, value)) {
-			appendValue(app, value);
-		} else {
-			static if (isSomeString!(Unqual!T)) {
-				appendValue(app, MySQLFragment(value));
-			} else static if (is(Unqual!T == MySQLRawString)) {
-				appendValue(app, MySQLFragment(value.data));
-			} else static if (is(Unqual!T == MySQLValue)) {
-				appendValue(app, MySQLFragment(value.peek!string));
-			}
-		}
-	} else {
-		appendValue(app, value);
-	}
-}
-
 private bool appendNextValue(T)(ref Appender!(char[]) app, ref const(char)[] sql, ref size_t indexArg, const(void)* arg) {
 	static if (isArray!T && !isSomeString!T) {
 		foreach (i, ref v; *cast(T*)arg) {
 			if (copyUpToNext(app, sql)) {
-				appendQuotableValue(app, sql, v);
+				appendValue(app, v);
 				++indexArg;
 			} else {
 				return false;
@@ -1164,7 +1121,7 @@ private bool appendNextValue(T)(ref Appender!(char[]) app, ref const(char)[] sql
 		}
 	} else {
 		if (copyUpToNext(app, sql)) {
-			appendQuotableValue(app, sql, *cast(T*)arg);
+			appendValue(app, *cast(T*)arg);
 			++indexArg;
 		} else {
 			return false;
