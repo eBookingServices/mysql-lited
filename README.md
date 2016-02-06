@@ -100,6 +100,23 @@ void usedb() {
 		auto place = row.toStruct!Place;
 		writeln(place.location);
 	});
+
+	
+	// structured row annotations
+	struct PlaceFull {
+		uint id;
+		string name;
+		@optional string thumbnail;	// ok to be null or missing
+		@optional GeoRef location;	// nested fields ok to be null or missing
+		@optional @as("contact_person") string contact; // optional, and sourced from field contact_person instead
+
+		@ignore File tumbnail;	// completely ignored
+	}
+
+	conn.execute("select id, name, thumbnail, lat as `location.lat`, lng as `location.lng`, contact_person from places", (MySQLRow row) {
+		auto place = row.toStruct!PlaceFull;
+		writeln(place.location);
+	});
 }
 ```
 
