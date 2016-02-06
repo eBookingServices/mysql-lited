@@ -15,7 +15,6 @@ avoiding unnecessary allocations and work for the garbage collector
 ## example
 ```d
 import std.stdio;
-import std.traits : isIntegral;
 
 import mysql;
 
