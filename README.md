@@ -20,8 +20,17 @@ import mysql;
 
 
 void usedb() {
+
+	// use the default mysql client - uses only prepared statements
 	auto client = new MySQLClient("host=sql.moo.com;user=root;pwd=god;db=mew");
 	auto conn = client.lockConnection();
+	
+	
+	// use the text protocol instead - instantiate the MySQLClientT template with appropriate arguments
+	alias MySQLTextClient = MySQLClientT!(VibeSocket, ConnectionOptions.TextProtocol | ConnectionOptions.TextProtocolCheckNoArgs);
+	auto textClient = new MySQLTextClient("host=sql.moo.com;user=root;pwd=god;db=mew");
+	auto textConn = textClient.lockConnection();
+
 
 	// change database
 	conn.use("mewmew");

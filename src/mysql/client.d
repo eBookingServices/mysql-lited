@@ -31,8 +31,18 @@ final class MySQLClientT(SocketType, ConnectionOptions Options = ConnectionOptio
 		return connection;
 	}
 
-	package alias ConnectionType = Connection!(VibeSocket, Options);
-	package alias ConnectionPoolType = ConnectionPool!(ConnectionType*);
+	@property ConnectionPoolType pool() {
+		return connections_;
+	}
+
+	@property const(ConnectionPoolType) pool() const {
+		return connections_;
+	}
+
+	alias LockedConnection = vibe.core.connectionpool.LockedConnection!(ConnectionType*);
+	alias ConnectionType = Connection!(VibeSocket, Options);
+	alias ConnectionPoolType = ConnectionPool!(ConnectionType*);
+
 	private ConnectionPoolType connections_;
 }
 
