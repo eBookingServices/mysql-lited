@@ -17,7 +17,7 @@ public import mysql.type;
 
 
 immutable CapabilityFlags DefaultClientCaps = CapabilityFlags.CLIENT_LONG_PASSWORD | CapabilityFlags.CLIENT_LONG_FLAG |
-CapabilityFlags.CLIENT_CONNECT_WITH_DB | CapabilityFlags.CLIENT_PROTOCOL_41 | CapabilityFlags.CLIENT_SECURE_CONNECTION;
+CapabilityFlags.CLIENT_CONNECT_WITH_DB | CapabilityFlags.CLIENT_PROTOCOL_41 | CapabilityFlags.CLIENT_SECURE_CONNECTION | CapabilityFlags.CLIENT_SESSION_TRACK;
 
 
 struct ConnectionStatus {
@@ -31,7 +31,49 @@ struct ConnectionStatus {
 }
 
 
-private struct ConnectionSettings {
+struct ConnectionSettings {
+	this(const(char)[] connectionString) {
+		auto remaining = connectionString;
+
+		auto indexValue = remaining.indexOf("=");
+		while (!remaining.empty) {
+			auto indexValueEnd = remaining.indexOf(";", indexValue);
+			if (indexValueEnd <= 0)
+				indexValueEnd = remaining.length;
+
+			auto name = strip(remaining[0..indexValue]);
+			auto value = strip(remaining[indexValue+1..indexValueEnd]);
+
+			switch (name) {
+				case "host":
+					host = value;
+					break;
+				case "user":
+					user = value;
+					break;
+				case "pwd":
+					pwd = value;
+					break;
+				case "db":
+					db = value;
+					break;
+				case "port":
+					port = to!ushort(value);
+					break;
+				default:
+					throw new MySQLException("Bad connection string: " ~ cast(string)connectionString);
+			}
+
+			if (indexValueEnd == remaining.length)
+				return;
+
+			remaining = remaining[indexValueEnd+1..$];
+			indexValue = remaining.indexOf("=");
+		}
+
+		throw new MySQLException("Bad connection string: " ~ cast(string)connectionString);
+	}
+
 	CapabilityFlags caps = DefaultClientCaps;
 
 	const(char)[] host;
@@ -98,7 +140,12 @@ enum ConnectionOptions {
 
 struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Default) {
 	void connect(string connectionString) {
-		connectionSettings(connectionString);
+		settings_ = ConnectionSettings(connectionString);
+		connect();
+	}
+
+	void connect(ConnectionSettings settings) {
+		settings_ = settings;
 		connect();
 	}
 
@@ -116,6 +163,11 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 	void use(const(char)[] db) {
 		send(Commands.COM_INIT_DB, db);
 		eatStatus(retrieve());
+
+		if ((caps_ & CapabilityFlags.CLIENT_SESSION_TRACK) == 0) {
+			schema_.length = db.length;
+			schema_[] = db[];
+		}
 	}
 
 	void ping() {
@@ -138,6 +190,14 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 
 		auto answer = retrieve();
 		return answer.eat!(const(char)[])(answer.remaining);
+	}
+
+	const(char)[] schema() const {
+		return schema_;
+	}
+
+	ConnectionSettings settings() const {
+		return settings_;
 	}
 
 	auto prepare(const(char)[] sql) {
@@ -577,8 +637,12 @@ private:
 			reply.put!ubyte(0);
 		}
 
-		if (settings_.db.length && (caps_ & CapabilityFlags.CLIENT_CONNECT_WITH_DB))
+		if (settings_.db.length && (caps_ & CapabilityFlags.CLIENT_CONNECT_WITH_DB)) {
 			reply.put(settings_.db);
+
+			schema_.length = settings_.db.length;
+			schema_[] = settings_.db[];
+		}
 
 		reply.put!ubyte(0);
 
@@ -603,7 +667,7 @@ private:
 			status_.warnings = packet.eat!ushort;
 			status_.error = 0;
 
-			if (caps_ & CapabilityFlags.CLIENT_SESSION_TRACK) {
+			if (!packet.empty && (caps_ & CapabilityFlags.CLIENT_SESSION_TRACK)) {
 				info(packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc()));
 				packet.skip(1);
 
@@ -611,7 +675,9 @@ private:
 					packet.skip(cast(size_t)packet.eatLenEnc());
 					packet.skip(1);
 				}
-			} else if (!packet.empty) {
+			}
+
+			if (!packet.empty) {
 				auto len = cast(size_t)packet.eatLenEnc();
 				info(packet.eat!(const(char)[])(min(len, packet.remaining)));
 
@@ -1011,55 +1077,12 @@ private:
 		return sql_.data;
 	}
 
-	void connectionSettings(const(char)[] connectionString) {
-		import std.conv;
-
-		auto remaining = connectionString;
-
-		auto indexValue = remaining.indexOf("=");
-		while (!remaining.empty) {
-			auto indexValueEnd = remaining.indexOf(";", indexValue);
-			if (indexValueEnd <= 0)
-				indexValueEnd = remaining.length;
-
-			auto name = strip(remaining[0..indexValue]);
-			auto value = strip(remaining[indexValue+1..indexValueEnd]);
-
-			switch (name) {
-			case "host":
-				settings_.host = value;
-				break;
-			case "user":
-				settings_.user = value;
-				break;
-			case "pwd":
-				settings_.pwd = value;
-				break;
-			case "db":
-				settings_.db = value;
-				break;
-			case "port":
-				settings_.port = to!ushort(value);
-				break;
-			default:
-				throw new MySQLException("Bad connection string: " ~ cast(string)connectionString);
-			}
-
-			if (indexValueEnd == remaining.length)
-				return;
-
-			remaining = remaining[indexValueEnd+1..$];
-			indexValue = remaining.indexOf("=");
-		}
-
-		throw new MySQLException("Bad connection string: " ~ cast(string)connectionString);
-	}
-
 	SocketType socket_;
 	MySQLHeader header_;
 	MySQLRow row_;
 	char[] columns_;
 	char[] info_;
+	char[] schema_;
 	ubyte[] in_;
 	ubyte[] out_;
 	ubyte seq_;

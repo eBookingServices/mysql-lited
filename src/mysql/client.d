@@ -15,6 +15,14 @@ final class MySQLClientT(SocketType, ConnectionOptions Options = ConnectionOptio
 		});
 	}
 
+	this(ConnectionSettings settings) {
+		connections_ = new ConnectionPoolType({
+			auto ret = new ConnectionType();
+			ret.connect(settings);
+			return ret;
+		});
+	}
+
 	this(string host, ushort port, string user, string pwd, string db) {
 		connections_ = new ConnectionPoolType({
 			auto ret = new ConnectionType();
@@ -25,9 +33,12 @@ final class MySQLClientT(SocketType, ConnectionOptions Options = ConnectionOptio
 
 	auto lockConnection() {
 		auto connection = connections_.lockConnection();
-		if (connection.inTransaction)
-			connection.rollback();
 		connection.onStatus = null;
+
+		if (connection.inTransaction)
+			connection.rollback;
+		if (connection.settings.db.length && (connection.settings.db != connection.schema))
+			connection.use(connection.settings.db);
 		return connection;
 	}
 
