@@ -125,6 +125,16 @@ void usedb() {
 		auto place = row.toStruct!PlaceFull;
 		writeln(place.location);
 	});
+
+
+	// automated struct member uncamelcase
+	@uncamel struct PlaceOwner {
+		uint placeID;			// matches placeID and place_id
+		uint locationId;		// matches locationId and location_id
+		string ownerFirstName;	// matches ownerFirstName and owner_first_name
+		string ownerLastName;	// matches ownerLastName and owner_last_name
+		string feedURL;			// matches feedURL and feed_url
+	}
 }
 ```
 

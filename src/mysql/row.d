@@ -12,7 +12,8 @@ import mysql.type;
 
 private struct IgnoreAttribute {}
 private struct OptionalAttribute {}
-private struct NameAttribute { string name; }
+private struct NameAttribute { const(char)[] name; }
+private struct UnCamelCaseAttribute {}
 
 
 @property IgnoreAttribute ignore() {
@@ -25,8 +26,13 @@ private struct NameAttribute { string name; }
 }
 
 
-@property NameAttribute as(string name) {
+@property NameAttribute as(const(char)[] name)  {
 	return NameAttribute(name);
+}
+
+
+@property UnCamelCaseAttribute uncamel() {
+	return UnCamelCaseAttribute();
 }
 
 
@@ -253,13 +259,18 @@ package:
 
 private:
 	void structurize(T, Strict strict = Strict.yesIgnoreNull, string path = null)(ref T result) {
+		enum unCamel = hasUDA!(T, UnCamelCaseAttribute);
+
 		foreach(member; __traits(allMembers, T)) {
 			static if (isWritableDataMember!(T, member)) {
 				static if (!hasUDA!(__traits(getMember, result, member), NameAttribute)) {
 					enum pathMember = path ~ member;
+					enum pathMemberAlt = path ~ member.unCamelCase;
 				} else {
 					enum pathMember = path ~ getUDAs!(__traits(getMember, result, member), NameAttribute)[0].name;
+					enum pathMemberAlt = pathMember;
 				}
+
 				alias MemberType = typeof(__traits(getMember, result, member));
 
 				static if (is(Unqual!MemberType == struct) && !is(Unqual!MemberType == Date) && !is(Unqual!MemberType == DateTime) && !is(Unqual!MemberType == SysTime) && !is(Unqual!MemberType == Duration)) {
@@ -271,8 +282,14 @@ private:
 					}
 				} else {
 					enum hash = pathMember.hashOf;
+					enum hashAlt = pathMemberAlt.hashOf;
 
-					if (auto index = find_(hash, pathMember)) {
+					auto index = find_(hash, pathMember);
+					static if (pathMember != pathMemberAlt) {
+						index = find_(hashAlt, pathMemberAlt);
+					}
+
+					if (index) {
 						auto pvalue = values_[index - 1];
 
 						static if ((strict == Strict.no) || (strict == Strict.yesIgnoreNull) || hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
@@ -285,7 +302,12 @@ private:
 					}
 
 					static if (((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) && !hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
-						throw new MySQLErrorException("Column '" ~ pathMember ~ "' was not found in this result set");
+						static if (pathMember == pathMemberAlt) {
+							enum ColumnError = format("Column '%s' was not found in this result set", pathMember);
+						} else {
+							enum ColumnError = format("Column '%s' or '%s' was not found in this result set", pathMember, pathMember);
+						}
+						throw new MySQLErrorException(ColumnError);
 					}
 				}
 			}
@@ -295,4 +317,86 @@ private:
 	MySQLValue[] values_;
 	const(char)[][] names_;
 	uint[] index_;
+}
+
+private string unCamelCase(string x) {
+	assert(x.length <= 64);
+
+	enum CharClass {
+		LowerCase,
+		UpperCase,
+		Underscore,
+		Digit,
+	}
+
+	CharClass classify(char ch) @nogc @safe pure nothrow {
+		switch (ch) with (CharClass) {
+		case 'A':..case 'Z':
+			return UpperCase;
+		case 'a':..case 'z':
+			return LowerCase;
+		case '0':..case '9':
+			return Digit;
+		case '_':
+			return Underscore;
+		default:
+			assert(false, "only supports identifier-type strings");
+		}
+	}
+
+	if (x.length > 0) {
+		char[128] buffer;
+		size_t length;
+
+		auto pcls = classify(x.ptr[0]);
+		foreach (i; 0..x.length) with (CharClass) {
+			auto ch = x.ptr[i];
+			auto cls = classify(ch);
+
+			final switch (cls) {
+			case Underscore:
+				buffer[length++] = '_';
+				break;
+			case LowerCase:
+				buffer[length++] = ch;
+				break;
+			case UpperCase:
+				if ((pcls != UpperCase) && (pcls != Underscore))
+					buffer[length++] = '_';
+				buffer[length++] = std.ascii.toLower(ch);
+				break;
+			case Digit:
+				if (pcls != Digit)
+					buffer[length++] = '_';
+				buffer[length++] = ch;
+				break;
+			}
+			pcls = cls;
+
+			if (length == buffer.length)
+				break;
+		}
+		return buffer[0..length].idup;
+	}
+	return x;
+}
+
+
+unittest {
+	assert("AA".unCamelCase == "aa");
+	assert("AaA".unCamelCase == "aa_a");
+	assert("AaA1".unCamelCase == "aa_a_1");
+	assert("AaA11".unCamelCase == "aa_a_11");
+	assert("_AaA1".unCamelCase == "_aa_a_1");
+	assert("_AaA11_".unCamelCase == "_aa_a_11_");
+	assert("aaA".unCamelCase == "aa_a");
+	assert("aaAA".unCamelCase == "aa_aa");
+	assert("aaAA1".unCamelCase == "aa_aa_1");
+	assert("aaAA11".unCamelCase == "aa_aa_11");
+	assert("authorName".unCamelCase == "author_name");
+	assert("authorBio".unCamelCase == "author_bio");
+	assert("authorPortraitId".unCamelCase == "author_portrait_id");
+	assert("authorPortraitID".unCamelCase == "author_portrait_id");
+	assert("coverURL".unCamelCase == "cover_url");
+	assert("coverImageURL".unCamelCase == "cover_image_url");
 }
