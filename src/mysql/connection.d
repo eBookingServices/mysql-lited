@@ -401,27 +401,27 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		return onStatus_;
 	}
 
-	@property ulong insertID() {
+	@property ulong insertID() const {
 		return status_.insertID;
 	}
 
-	@property ulong affected() {
+	@property ulong affected() const {
 		return cast(size_t)status_.affected;
 	}
 
-	@property ulong matched() {
+	@property ulong matched() const {
 		return cast(size_t)status_.matched;
 	}
 
-	@property ulong changed() {
+	@property ulong changed() const {
 		return cast(size_t)status_.changed;
 	}
 
-	@property size_t warnings() {
+	@property size_t warnings() const {
 		return status_.warnings;
 	}
 
-	@property size_t error() {
+	@property size_t error() const {
 		return status_.error;
 	}
 

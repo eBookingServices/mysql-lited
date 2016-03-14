@@ -10,7 +10,7 @@ struct VibeSocket {
 		socket_.tcpNoDelay = true;
 	}
 
-	bool connected() const {
+	bool connected() inout {
 		return socket_ && socket_.connected();
 	}
 

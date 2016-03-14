@@ -42,11 +42,7 @@ final class MySQLClientT(SocketType, ConnectionOptions Options = ConnectionOptio
 		return connection;
 	}
 
-	@property ConnectionPoolType pool() {
-		return connections_;
-	}
-
-	@property const(ConnectionPoolType) pool() const {
+	@property const(ConnectionPoolType) pool() inout {
 		return connections_;
 	}
 

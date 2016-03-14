@@ -2,9 +2,10 @@ module mysql.type;
 
 
 import std.algorithm;
+import std.array : appender;
 import std.conv : parse, to;
 import std.datetime;
-import std.format: format;
+import std.format: format, formattedWrite;
 import std.traits;
 
 import mysql.protocol;
@@ -131,8 +132,6 @@ struct MySQLValue {
 	}
 
 	void toString(Appender)(ref Appender app) const {
-		import std.format : formattedWrite;
-
 		final switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_NULL:
 			break;
@@ -194,56 +193,9 @@ struct MySQLValue {
 	}
 
 	string toString() const {
-		import std.conv : to;
-
-		final switch(type_) with (ColumnTypes) {
-		case MYSQL_TYPE_NULL:
-			return null;
-		case MYSQL_TYPE_TINY:
-			if (isSigned) return to!string(*cast(byte*)buffer_.ptr);
-			else  return to!string(*cast(ubyte*)buffer_.ptr);
-		case MYSQL_TYPE_YEAR:
-		case MYSQL_TYPE_SHORT:
-			if (isSigned) return to!string(*cast(short*)buffer_.ptr);
-			else return to!string(*cast(ushort*)buffer_.ptr);
-		case MYSQL_TYPE_INT24:
-		case MYSQL_TYPE_LONG:
-			if (isSigned) return to!string(*cast(int*)buffer_.ptr);
-			else return to!string(*cast(uint*)buffer_.ptr);
-		case MYSQL_TYPE_LONGLONG:
-			if (isSigned) return to!string(*cast(long*)buffer_.ptr);
-			else return to!string(*cast(ulong*)buffer_.ptr);
-		case MYSQL_TYPE_FLOAT:
-			return to!string(*cast(float*)buffer_.ptr);
-		case MYSQL_TYPE_DOUBLE:
-			return to!string(*cast(double*)buffer_.ptr);
-		case MYSQL_TYPE_SET:
-		case MYSQL_TYPE_ENUM:
-		case MYSQL_TYPE_VARCHAR:
-		case MYSQL_TYPE_VAR_STRING:
-		case MYSQL_TYPE_STRING:
-		case MYSQL_TYPE_JSON:
-		case MYSQL_TYPE_NEWDECIMAL:
-		case MYSQL_TYPE_DECIMAL:
-		case MYSQL_TYPE_TINY_BLOB:
-		case MYSQL_TYPE_MEDIUM_BLOB:
-		case MYSQL_TYPE_LONG_BLOB:
-		case MYSQL_TYPE_BLOB:
-			return (*cast(string*)buffer_.ptr).idup;
-		case MYSQL_TYPE_BIT:
-		case MYSQL_TYPE_GEOMETRY:
-			return to!string(*cast(ubyte[]*)buffer_.ptr);
-		case MYSQL_TYPE_TIME:
-		case MYSQL_TYPE_TIME2:
-			return (*cast(MySQLTime*)buffer_.ptr).toDuration().toString();
-		case MYSQL_TYPE_DATE:
-		case MYSQL_TYPE_NEWDATE:
-		case MYSQL_TYPE_DATETIME:
-		case MYSQL_TYPE_DATETIME2:
-		case MYSQL_TYPE_TIMESTAMP:
-		case MYSQL_TYPE_TIMESTAMP2:
-			return (*cast(MySQLDateTime*)buffer_.ptr).to!DateTime().toString();
-		}
+		auto app = appender!string;
+		toString(app);
+		return app.data;
 	}
 
 	T get(T)(lazy T def) const {
