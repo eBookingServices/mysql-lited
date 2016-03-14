@@ -437,10 +437,6 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		socket_.close();
 	}
 
-	~this() {
-		disconnect();
-	}
-
 private:
 	void query(Args...)(const(char)[] sql, Args args) {
 		scope(failure) disconnect();
