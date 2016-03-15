@@ -265,10 +265,14 @@ private:
 			static if (isWritableDataMember!(T, member)) {
 				static if (!hasUDA!(__traits(getMember, result, member), NameAttribute)) {
 					enum pathMember = path ~ member;
-					enum pathMemberAlt = path ~ member.unCamelCase;
+					static if (unCamel) {
+						enum pathMemberAlt = path ~ member.unCamelCase;
+					}
 				} else {
 					enum pathMember = path ~ getUDAs!(__traits(getMember, result, member), NameAttribute)[0].name;
-					enum pathMemberAlt = pathMember;
+					static if (unCamel) {
+						enum pathMemberAlt = pathMember;
+					}
 				}
 
 				alias MemberType = typeof(__traits(getMember, result, member));
@@ -282,11 +286,14 @@ private:
 					}
 				} else {
 					enum hash = pathMember.hashOf;
-					enum hashAlt = pathMemberAlt.hashOf;
+					static if (unCamel) {
+						enum hashAlt = pathMemberAlt.hashOf;
+					}
 
 					auto index = find_(hash, pathMember);
-					static if (pathMember != pathMemberAlt) {
-						index = find_(hashAlt, pathMemberAlt);
+					static if (unCamel && (pathMember != pathMemberAlt)) {
+						if (!index)
+							index = find_(hashAlt, pathMemberAlt);
 					}
 
 					if (index) {
@@ -302,7 +309,7 @@ private:
 					}
 
 					static if (((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) && !hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
-						static if (pathMember == pathMemberAlt) {
+						static if (!unCamel || (pathMember == pathMemberAlt)) {
 							enum ColumnError = format("Column '%s' was not found in this result set", pathMember);
 						} else {
 							enum ColumnError = format("Column '%s' or '%s' was not found in this result set", pathMember, pathMember);
