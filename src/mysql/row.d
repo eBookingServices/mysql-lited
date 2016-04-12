@@ -5,6 +5,7 @@ import std.algorithm;
 import std.datetime;
 import std.traits;
 import std.typecons;
+static import std.ascii;
 
 import mysql.exception;
 import mysql.type;
