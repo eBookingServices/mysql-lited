@@ -2,6 +2,8 @@ module mysql.inserter;
 
 
 import std.array;
+import std.meta;
+import std.range;
 import std.traits;
 
 
@@ -13,6 +15,7 @@ enum OnDuplicate : size_t {
 	Error,
 	Replace,
 	Update,
+	UpdateAll,
 }
 
 
@@ -48,39 +51,67 @@ struct Inserter(ConnectionType) {
 		flush();
 	}
 
-	void start(Args...)(string tableName, Args fieldNames) {
+	void start(Args...)(string tableName, Args fieldNames) if ((Args.length > 0) && (allSatisfy!(isSomeString, Args) || ((Args.length == 1) && isSomeString!(ElementType!(Args[0]))))) {
 		start(OnDuplicate.Error, tableName, fieldNames);
 	}
 
-	void start(Args...)(OnDuplicate action, string tableName, Args fieldNames) {
+	void start(Args...)(OnDuplicate action, string tableName, Args fieldNames) if ((Args.length > 0) && (allSatisfy!(isSomeString, Args) || ((Args.length == 1) && isSomeString!(ElementType!(Args[0]))))) {
 		fields_ = fieldNames.length;
 
-		Appender!(char[]) appender;
+		Appender!(char[]) app;
 
-		final switch(action) {
-		case OnDuplicate.Ignore:
-			appender.put("insert ignore into ");
+		final switch(action) with (OnDuplicate) {
+		case Ignore:
+			app.put("insert ignore into ");
 			break;
-		case OnDuplicate.Replace:
-			appender.put("replace into ");
+		case Replace:
+			app.put("replace into ");
 			break;
-		case OnDuplicate.Update:
-		case OnDuplicate.Error:
-			appender.put("insert into ");
+		case UpdateAll:
+			Appender!(char[]) dupapp;
+
+			static if (isSomeString!(Args[0])) {
+				alias Columns = fieldNames;
+			} else {
+				auto Columns = fieldNames[0];
+			}
+
+			foreach(size_t i, name; Columns) {
+				dupapp.put('`');
+				dupapp.put(name);
+				dupapp.put("`=values(`");
+				dupapp.put(name);
+				dupapp.put("`)");
+				if (i + 1 != Columns.length)
+					dupapp.put(',');
+			}
+			dupUpdate_ = dupapp.data;
+			goto case Update;
+		case Update:
+		case Error:
+			app.put("insert into ");
 			break;
 		}
 
-		appender.put(tableName);
-		appender.put('(');
-		foreach(size_t i, name; fieldNames) {
-			appender.put('`');
-			appender.put(name);
-			appender.put('`');
-			if (i != fieldNames.length-1)
-				appender.put(',');
+		app.put(tableName);
+		app.put('(');
+
+		static if (isSomeString!(Args[0])) {
+			alias Columns = fieldNames;
+		} else {
+			auto Columns = fieldNames[0];
 		}
-		appender.put(")values");
-		start_ = appender.data;
+
+		foreach(size_t i, name; Columns) {
+			app.put('`');
+			app.put(name);
+			app.put('`');
+			if (i + 1 != Columns.length)
+				app.put(',');
+		}
+
+		app.put(")values");
+		start_ = app.data;
 	}
 
 	auto ref duplicateUpdate(string update) {
