@@ -10,7 +10,7 @@ import mysql.protocol;
 import mysql.type;
 
 
-void appendValue(Appender, T)(ref Appender appender, T value) if (is(typeof(T) == typeof(null))) {
+void appendValue(Appender, T)(ref Appender appender, T value) if (is(Unqual!T == typeof(null))) {
 	appender.put("null");
 }
 
