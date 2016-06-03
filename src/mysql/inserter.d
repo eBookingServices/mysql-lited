@@ -4,10 +4,12 @@ module mysql.inserter;
 import std.array;
 import std.meta;
 import std.range;
+import std.string;
 import std.traits;
 
 
 import mysql.appender;
+import mysql.exception;
 
 
 enum OnDuplicate : size_t {
@@ -38,6 +40,11 @@ auto inserter(ConnectionType, Args...)(ConnectionType connection, string tableNa
 }
 
 
+private template isSomeStringOrSomeStringArray(T) {
+	enum isSomeStringOrSomeStringArray = isSomeString!T || (isArray!T && isSomeString!(ElementType!T));
+}
+
+
 struct Inserter(ConnectionType) {
 	@disable this();
 
@@ -51,12 +58,20 @@ struct Inserter(ConnectionType) {
 		flush();
 	}
 
-	void start(Args...)(string tableName, Args fieldNames) if ((Args.length > 0) && (allSatisfy!(isSomeString, Args) || ((Args.length == 1) && isSomeString!(ElementType!(Args[0]))))) {
+	void start(Args...)(string tableName, Args fieldNames) if (Args.length && allSatisfy!(isSomeStringOrSomeStringArray, Args)) {
 		start(OnDuplicate.Error, tableName, fieldNames);
 	}
 
-	void start(Args...)(OnDuplicate action, string tableName, Args fieldNames) if ((Args.length > 0) && (allSatisfy!(isSomeString, Args) || ((Args.length == 1) && isSomeString!(ElementType!(Args[0]))))) {
-		fields_ = fieldNames.length;
+	void start(Args...)(OnDuplicate action, string tableName, Args fieldNames) if (Args.length && allSatisfy!(isSomeStringOrSomeStringArray, Args)) {
+		auto fieldCount = fieldNames.length;
+
+		foreach (size_t i, Arg; Args) {
+			static if (isArray!Arg && !isSomeString!Arg) {
+				fieldCount = (fieldCount - 1) + fieldNames[i].length;
+			}
+		}
+
+		fields_ = fieldCount;
 
 		Appender!(char[]) app;
 
@@ -70,19 +85,26 @@ struct Inserter(ConnectionType) {
 		case UpdateAll:
 			Appender!(char[]) dupapp;
 
-			static if (isSomeString!(Args[0])) {
-				alias Columns = fieldNames;
-			} else {
-				auto Columns = fieldNames[0];
-			}
-
-			foreach(size_t i, name; Columns) {
-				dupapp.put('`');
-				dupapp.put(name);
-				dupapp.put("`=values(`");
-				dupapp.put(name);
-				dupapp.put("`)");
-				if (i + 1 != Columns.length)
+			foreach(size_t i, Arg; Args) {
+				static if (isSomeString!Arg) {
+					dupapp.put('`');
+					dupapp.put(fieldNames[i]);
+					dupapp.put("`=values(`");
+					dupapp.put(fieldNames[i]);
+					dupapp.put("`)");
+				} else {
+					auto columns = fieldNames[i];
+					foreach (j, name; columns) {
+						dupapp.put('`');
+						dupapp.put(name);
+						dupapp.put("`=values(`");
+						dupapp.put(name);
+						dupapp.put("`)");
+						if (j + 1 != columns.length)
+							dupapp.put(',');
+					}
+				}
+				if (i + 1 != Args.length)
 					dupapp.put(',');
 			}
 			dupUpdate_ = dupapp.data;
@@ -96,17 +118,22 @@ struct Inserter(ConnectionType) {
 		app.put(tableName);
 		app.put('(');
 
-		static if (isSomeString!(Args[0])) {
-			alias Columns = fieldNames;
-		} else {
-			auto Columns = fieldNames[0];
-		}
-
-		foreach(size_t i, name; Columns) {
-			app.put('`');
-			app.put(name);
-			app.put('`');
-			if (i + 1 != Columns.length)
+		foreach(size_t i, Arg; Args) {
+			static if (isSomeString!Arg) {
+				app.put('`');
+				app.put(fieldNames[i]);
+				app.put('`');
+			} else {
+				auto columns = fieldNames[i];
+				foreach (j, name; columns) {
+					app.put('`');
+					app.put(name);
+					app.put('`');
+					if (j + 1 != columns.length)
+						app.put(',');
+				}
+			}
+			if (i + 1 != Args.length)
 				app.put(',');
 		}
 
@@ -120,16 +147,31 @@ struct Inserter(ConnectionType) {
 	}
 
 	void row(Values...)(Values values) {
-		assert(values.length == fields_, "Column count and value count must match");
-		assert(!start_.empty, "Must call start before inserting a row");
+		if (start_.empty)
+			throw new MySQLErrorException("Inserter must be initialized with a call to start()");
+
+		auto valueCount = values.length;
+
+		foreach (size_t i, Value; Values) {
+			static if (isArray!Value && !isSomeString!Value) {
+				valueCount = (valueCount - 1) + values[i].length;
+			}
+		}
+
+		if (valueCount != fields_)
+			throw new MySQLErrorException(format("Wrong number of parameters for row. Got %d but expected %d.", valueCount, fields_));
 
 		if (!pending_)
 			values_.put(cast(char[])start_);
 
 		values_.put(pending_ ? ",(" : "(");
 		++pending_;
-		foreach (size_t i, value; values) {
-			appendValue(values_, value);
+		foreach (size_t i, Value; Values) {
+			static if (isArray!Value && !isSomeString!Value) {
+				appendValues(values_, values[i]);
+			} else {
+				appendValue(values_, values[i]);
+			}
 			if (i != values.length-1)
 				values_.put(',');
 		}

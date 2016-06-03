@@ -10,6 +10,14 @@ import mysql.protocol;
 import mysql.type;
 
 
+void appendValues(Appender, T)(ref Appender appender, T values) if (isArray!T && !isSomeString!T) {
+	foreach (size_t i, value; values) {
+		appendValue(appender, value);
+		if (i != values.length-1)
+			appender.put(',');
+	}
+}
+
 void appendValue(Appender, T)(ref Appender appender, T value) if (is(Unqual!T == typeof(null))) {
 	appender.put("null");
 }
