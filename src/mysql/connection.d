@@ -360,12 +360,21 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 			if (indexArg != stmt.params)
 				throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", indexArg, stmt.params));
 
-			foreach (arg; args[0..argCount])
-				putValueType(packet, arg);
+			foreach (arg; args[0..argCount]) {
+				static if (is(typeof(arg) == enum)) {
+					putValueType(packet, cast(OriginalType!(typeof(arg)))arg);
+				} else {
+					putValueType(packet, arg);
+				}
+			}
 
 			foreach (arg; args[0..argCount]) {
 				static if (!is(typeof(arg) == typeof(null))) {
-					putValue(packet, arg);
+					static if (is(typeof(arg) == enum)) {
+						putValue(packet, cast(OriginalType!(typeof(arg)))arg);
+					} else {
+						putValue(packet, arg);
+					}
 				}
 			}
 		}
@@ -1053,8 +1062,13 @@ private:
 		const(void)*[Args.length] addrs;
 
 		foreach (i, Arg; Args) {
-			funcs[i] = () @trusted { return cast(AppendFunc)&appendNextValue!(Arg); }();
-			addrs[i] = (ref x)@trusted{ return cast(const void*)&x; }(args[i]);
+			static if (is(Arg == enum)) {
+				funcs[i] = () @trusted { return cast(AppendFunc)&appendNextValue!(OriginalType!Arg); }();
+				addrs[i] = (ref x)@trusted{ return cast(const void*)&x; }(cast(OriginalType!Arg)args[i]);
+			} else {
+				funcs[i] = () @trusted { return cast(AppendFunc)&appendNextValue!(Arg); }();
+				addrs[i] = (ref x)@trusted{ return cast(const void*)&x; }(args[i]);
+			}
 		}
 
 		size_t indexArg;
