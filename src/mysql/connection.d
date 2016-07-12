@@ -362,7 +362,7 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 
 			foreach (arg; args[0..argCount]) {
 				static if (is(typeof(arg) == enum)) {
-					putValueType(packet, cast(OriginalType!(typeof(arg)))arg);
+					putValueType(packet, cast(OriginalType!(Unqual!(typeof(arg))))arg);
 				} else {
 					putValueType(packet, arg);
 				}
@@ -371,7 +371,7 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 			foreach (arg; args[0..argCount]) {
 				static if (!is(typeof(arg) == typeof(null))) {
 					static if (is(typeof(arg) == enum)) {
-						putValue(packet, cast(OriginalType!(typeof(arg)))arg);
+						putValue(packet, cast(OriginalType!(Unqual!(typeof(arg))))arg);
 					} else {
 						putValue(packet, arg);
 					}
@@ -1064,10 +1064,10 @@ private:
 		foreach (i, Arg; Args) {
 			static if (is(Arg == enum)) {
 				funcs[i] = () @trusted { return cast(AppendFunc)&appendNextValue!(OriginalType!Arg); }();
-				addrs[i] = (ref x)@trusted{ return cast(const void*)&x; }(cast(OriginalType!Arg)args[i]);
+				addrs[i] = (ref x) @trusted { return cast(const void*)&x; }(cast(OriginalType!(Unqual!Arg))args[i]);
 			} else {
 				funcs[i] = () @trusted { return cast(AppendFunc)&appendNextValue!(Arg); }();
-				addrs[i] = (ref x)@trusted{ return cast(const void*)&x; }(args[i]);
+				addrs[i] = (ref x) @trusted { return cast(const void*)&x; }(args[i]);
 			}
 		}
 
