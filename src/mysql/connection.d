@@ -119,7 +119,7 @@ private struct ServerInfo {
 }
 
 
-@property string placeholders(T)(T[] x, bool parens = true) {
+@property string placeholders(T)(T x, bool parens = true) if (is(typeof(() { auto y = x.length; }))) {
 	return x.length.placeholders;
 }
 

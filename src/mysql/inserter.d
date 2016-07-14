@@ -179,6 +179,12 @@ struct Inserter(ConnectionType) {
 
 		if (values_.data.length > (128 << 10)) // todo: make parameter
 			flush();
+
+		++rows_;
+	}
+
+	@property size_t rows() const {
+		return rows_ != 0;
 	}
 
 	@property size_t pending() const {
@@ -214,4 +220,5 @@ private:
 	size_t pending_;
 	size_t flushes_;
 	size_t fields_;
+	size_t rows_;
 }
