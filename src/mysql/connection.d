@@ -461,10 +461,12 @@ private:
 		enum argCount = shouldDiscard ? args.length : (args.length - 1);
 
 		static if (argCount || (Options & ConnectionOptions.TextProtocolCheckNoArgs)) {
-			send(Commands.COM_QUERY, prepareSQL(sql, args[0..argCount]));
+			auto querySQL = prepareSQL(sql, args[0..argCount]);
 		} else {
-			send(Commands.COM_QUERY, sql);
+			auto querySQL = sql;
 		}
+
+		send(Commands.COM_QUERY, querySQL);
 
 		auto answer = retrieve();
 		if (isStatus(answer)) {
