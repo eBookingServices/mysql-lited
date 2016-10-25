@@ -267,7 +267,7 @@ struct MySQLValue {
 		return !isNull ? get!T : def;
 	}
 
-	T get(T)() const if (isScalarType!T) {
+	T get(T)() const if (isScalarType!T && !is(T == enum)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_TINY:
 			return cast(T)(*cast(ubyte*)buffer_.ptr);
@@ -302,6 +302,10 @@ struct MySQLValue {
 		}
 	}
 
+	T get(T)() const if (is(Unqual!T == enum)) {
+		return cast(T)get!(OriginalType!T);
+	}
+
 	T get(T)() const if (is(Unqual!T == Duration)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_TIME:
@@ -312,7 +316,7 @@ struct MySQLValue {
 		}
 	}
 
-	T get(T)() const if (isArray!T) {
+	T get(T)() const if (isArray!T && !is(T == enum)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_SET:
 		case MYSQL_TYPE_ENUM:
