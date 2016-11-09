@@ -235,14 +235,15 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		return PreparedStatement(id, params);
 	}
 
-	void execute(Args...)(const(char)[] sql, Args args) {
+	void execute(string File=__FILE__, uint Line=__LINE__, Args...)(const(char)[] sql, Args args) {
+		File_=File; Line_=Line;
 		static if (Options & ConnectionOptions.TextProtocol) {
 			query(sql, args);
 		} else {
 			scope(failure) disconnect();
 
 			auto id = prepare(sql);
-			execute(id, args);
+			execute!(func, file, line)(id, args);
 			close(id);
 		}
 	}
@@ -293,7 +294,8 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		return connected && (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS);
 	}
 
-	void execute(Args...)(PreparedStatement stmt, Args args) {
+	void execute(string File=__FILE__, uint Line=__LINE__, Args...)(PreparedStatement stmt, Args args) {
+		File_=File; Line_=Line;
 		scope(failure) disconnect();
 
 		ensureConnected();
@@ -727,9 +729,14 @@ private:
 			switch(status_.error) {
 			case ErrorCodes.ER_DUP_ENTRY_WITH_KEY_NAME:
 			case ErrorCodes.ER_DUP_ENTRY:
-				throw new MySQLDuplicateEntryException(cast(string)info_);
+				throw new MySQLDuplicateEntryException(cast(string)info_, File_, Line_);
 			default:
-				throw new MySQLErrorException(cast(string)info_);
+				version(development) {
+					// On dev show the query together with the error message
+					throw new MySQLErrorException(cast(string)info_ ~ " - " ~ cast(string)sql_.data, File_, Line_);
+				} else {
+					throw new MySQLErrorException(cast(string)info_, File_, Line_);
+				}
 			}
 		default:
 			throw new MySQLProtocolException("Unexpected packet format");
@@ -1103,6 +1110,10 @@ private:
 	ConnectionStatus status_;
 	ConnectionSettings settings_;
 	ServerInfo server_;
+
+	// For better stack traces
+	string File_;
+	uint Line_;
 }
 
 private auto copyUpToNext(ref Appender!(char[]) app, ref const(char)[] sql) {
