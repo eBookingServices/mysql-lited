@@ -110,13 +110,13 @@ struct MySQLValue {
 	this(T)(T value) if (is(Unqual!T == Date) || is(Unqual!T == DateTime) || is(Unqual!T == SysTime)) {
 		type_ = ColumnTypes.MYSQL_TYPE_TIMESTAMP;
 		sign_ = 0x00;
-		(*cast(MySQLDateTime*)buffer_.ptr).from(value);
+		(*cast(MySQLDateTime*)buffer_) = MySQLDateTime.from(value);
 	}
 
 	this(T)(T value) if (is(Unqual!T == Duration)) {
 		type_ = ColumnTypes.MYSQL_TYPE_TIME;
 		sign_ = 0x00;
-		(*cast(MySQLTime*)buffer_.ptr).from(value);
+		(*cast(MySQLTime*)buffer_) = MySQLTime.from(value);
 	}
 
 	this(T)(T value) if (isSomeString!T) {
