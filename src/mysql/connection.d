@@ -448,6 +448,8 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		socket_.close();
 	}
 
+	@property void trace(bool tr) { this.trace_ = tr; }
+
 private:
 	void query(Args...)(const(char)[] sql, Args args) {
 		scope(failure) disconnect();
@@ -464,6 +466,12 @@ private:
 			auto querySQL = prepareSQL(sql, args[0..argCount]);
 		} else {
 			auto querySQL = sql;
+		}
+
+		version(development) {
+			import std.stdio;
+			if (trace_)
+				stderr.writeln(querySQL);
 		}
 
 		send(Commands.COM_QUERY, querySQL);
@@ -1112,6 +1120,9 @@ private:
 	ConnectionStatus status_;
 	ConnectionSettings settings_;
 	ServerInfo server_;
+
+	// For tracing queries
+	bool trace_;
 
 	// For better stack traces
 	string File_;
