@@ -102,20 +102,20 @@ struct MySQLRow {
 		return names_;
 	}
 
-	@property ref auto opDispatch(string key)() const {
+	@property ref auto opDispatch(string key, string File=__FILE__, size_t Line=__LINE__)() const {
 		enum hash = hashOf(key);
 		if (auto index = find_(hash, key))
 			return opIndex(index - 1);
-		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
+		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set", File, Line);
 	}
 
-	ref auto opIndex(string key) const {
+	ref auto opIndex(string File=__FILE__, size_t Line=__LINE__)(string key) const {
 		if (auto index = find_(key.hashOf, key))
 			return values_[index - 1];
-		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
+		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set", File, Line);
 	}
 
-	ref auto opIndex(size_t index) const {
+	ref auto opIndex(string File=__FILE__, size_t Line=__LINE__)(size_t index) const {
 		return values_[index];
 	}
 
@@ -169,7 +169,7 @@ struct MySQLRow {
 		return result;
 	}
 
-	void toStruct(T, Strict strict = Strict.yesIgnoreNull)(ref T x) if(is(Unqual!T == struct)) {
+	void toStruct(T, Strict strict = Strict.yesIgnoreNull, string File=__FILE__, size_t Line=__LINE__)(ref T x) if(is(Unqual!T == struct)) {
 		static if (isTuple!(Unqual!T)) {
 			foreach(i, ref f; x.field) {
 				if (i < length) {
@@ -183,17 +183,17 @@ struct MySQLRow {
 				}
 
 				static if ((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) {
-					throw new MySQLErrorException("Column " ~ i ~ " is out of range for this result set");
+					throw new MySQLErrorException("Column " ~ i ~ " is out of range for this result set", File, Line);
 				}
 			}
 		} else {
-			structurize!(T, strict, null)(x);
+			structurize!(T, strict, null, File, Line)(x);
 		}
 	}
 
-	T toStruct(T, Strict strict = Strict.yesIgnoreNull)() if (is(Unqual!T == struct)) {
+	T toStruct(T, Strict strict = Strict.yesIgnoreNull, string File=__FILE__, size_t Line=__LINE__)() if (is(Unqual!T == struct)) {
 		T result;
-		toStruct!(T, strict)(result);
+		toStruct!(T, strict, File, Line)(result);
 		return result;
 	}
 
@@ -262,7 +262,7 @@ package:
 	}
 
 private:
-	void structurize(T, Strict strict = Strict.yesIgnoreNull, string path = null)(ref T result) {
+	void structurize(T, Strict strict = Strict.yesIgnoreNull, string path = null, string File=__FILE__, size_t Line=__LINE__)(ref T result) {
 		enum unCamel = hasUDA!(T, UnCamelCaseAttribute);
 
 		foreach(member; __traits(allMembers, T)) {
@@ -284,9 +284,9 @@ private:
 				static if (is(Unqual!MemberType == struct) && !is(Unqual!MemberType == Date) && !is(Unqual!MemberType == DateTime) && !is(Unqual!MemberType == SysTime) && !is(Unqual!MemberType == Duration)) {
 					enum pathNew = pathMember ~ ".";
 					static if (hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
-						structurize!(MemberType, Strict.no, pathNew)(__traits(getMember, result, member));
+						structurize!(MemberType, Strict.no, pathNew, File, Line)(__traits(getMember, result, member));
 					} else {
-						structurize!(MemberType, strict, pathNew)(__traits(getMember, result, member));
+						structurize!(MemberType, strict, pathNew, File, Line)(__traits(getMember, result, member));
 					}
 				} else {
 					enum hash = pathMember.hashOf;
@@ -318,7 +318,7 @@ private:
 						} else {
 							enum ColumnError = format("Column '%s' or '%s' was not found in this result set", pathMember, pathMember);
 						}
-						throw new MySQLErrorException(ColumnError);
+						throw new MySQLErrorException(ColumnError, File, Line);
 					}
 				}
 			}

@@ -267,7 +267,7 @@ struct MySQLValue {
 		return !isNull ? get!T : def;
 	}
 
-	T get(T)() const if (isScalarType!T && !is(T == enum)) {
+	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (isScalarType!T && !is(T == enum)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_TINY:
 			return cast(T)(*cast(ubyte*)buffer_.ptr);
@@ -284,11 +284,11 @@ struct MySQLValue {
 		case MYSQL_TYPE_DOUBLE:
 			return cast(T)(*cast(double*)buffer_.ptr);
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to scalar", name_, columnTypeName(type_)));
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to scalar", name_, columnTypeName(type_)), File, Line);
 		}
 	}
 
-	T get(T)() const if (is(Unqual!T == SysTime) || is(Unqual!T == DateTime) ||  is(Unqual!T == Date) || is(Unqual!T == TimeOfDay)) {
+	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == SysTime) || is(Unqual!T == DateTime) ||  is(Unqual!T == Date) || is(Unqual!T == TimeOfDay)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_DATE:
 		case MYSQL_TYPE_NEWDATE:
@@ -298,25 +298,25 @@ struct MySQLValue {
 		case MYSQL_TYPE_TIMESTAMP2:
 			return (*cast(MySQLDateTime*)buffer_.ptr).to!T;
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to timestamp", name_, columnTypeName(type_)));
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to timestamp", name_, columnTypeName(type_)), File, Line);
 		}
 	}
 
-	T get(T)() const if (is(Unqual!T == enum)) {
-		return cast(T)get!(OriginalType!T);
+	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == enum)) {
+		return cast(T)get!(OriginalType!T, File, Line);
 	}
 
-	T get(T)() const if (is(Unqual!T == Duration)) {
+	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == Duration)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_TIME:
 		case MYSQL_TYPE_TIME2:
 			return (*cast(MySQLTime*)buffer_.ptr).toDuration;
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to duration", name_, columnTypeName(type_)));
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to duration", name_, columnTypeName(type_)), File, Line);
 		}
 	}
 
-	T get(T)() const if (isArray!T && !is(T == enum)) {
+	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (isArray!T && !is(T == enum)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_SET:
 		case MYSQL_TYPE_ENUM:
@@ -335,27 +335,27 @@ struct MySQLValue {
 		case MYSQL_TYPE_GEOMETRY:
 			return (*cast(T*)buffer_.ptr).dup;
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to array", name_, columnTypeName(type_)));
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to array", name_, columnTypeName(type_)), File, Line);
 		}
 	}
 
-	T peek(T)(lazy T def) const {
-		return !isNull ? peek!T : def;
+	T peek(T, string File=__FILE__, size_t Line=__LINE__)(lazy T def) const {
+		return !isNull ? peek!(T, File, Line) : def;
 	}
 
-	T peek(T)() const if (isScalarType!T) {
-		return get!T;
+	T peek(T, string File=__FILE__, size_t Line=__LINE__)() const if (isScalarType!T) {
+		return get!(T, File, Line);
 	}
 
-	T peek(T)() const if (is(Unqual!T == SysTime) || is(Unqual!T == DateTime) ||  is(Unqual!T == Date) || is(Unqual!T == TimeOfDay)) {
-		return get!T;
+	T peek(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == SysTime) || is(Unqual!T == DateTime) ||  is(Unqual!T == Date) || is(Unqual!T == TimeOfDay)) {
+		return get!(T, File, Line);
 	}
 
-	T peek(T)() const if (is(Unqual!T == Duration)) {
-		return get!T;
+	T peek(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == Duration)) {
+		return get!(T, File, Line);
 	}
 
-	T peek(T)() const if (isArray!T) {
+	T peek(T, string File=__FILE__, size_t Line=__LINE__)() const if (isArray!T) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_SET:
 		case MYSQL_TYPE_ENUM:
@@ -374,7 +374,7 @@ struct MySQLValue {
 		case MYSQL_TYPE_GEOMETRY:
 			return (*cast(T*)buffer_.ptr);
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to array", name_, columnTypeName(type_)));
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to array", name_, columnTypeName(type_)), File, Line);
 		}
 	}
 
@@ -419,7 +419,7 @@ struct MySQLTime {
 	ubyte secs;
 	uint usecs;
 
-	Duration toDuration() {
+	Duration toDuration() const {
 		auto total = days * 86400_000_000L +
 			hours * 3600_000_000L +
 			mins * 60_000_000L +
