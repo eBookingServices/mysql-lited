@@ -203,64 +203,22 @@ struct MySQLValue {
 	}
 
 	bool opEquals(MySQLValue other) const {
-		if (type_ != other.type_)
-			return false;
-
-		if (sign_ != other.sign_)
-			return false;
-
-		final switch(type_) with (ColumnTypes) {
-		case MYSQL_TYPE_NULL:
+		if (isString == other.isString) {
+			return peek!string == other.peek!string;
+		} else if (isScalar == other.isScalar) {
+			if (isFloatingPoint || other.isFloatingPoint)
+				return get!double == other.get!double;
+			if (isSigned || other.isSigned)
+				return get!long == other.get!long;
+			return get!ulong == other.get!ulong;
+		} else if (isTime == other.isTime) {
+			return get!Duration == other.get!Duration;
+		} else if (isTimestamp == other.isTimestamp) {
+			return get!SysTime == other.get!SysTime;
+		} else if (isNull == other.isNull) {
 			return true;
-		case MYSQL_TYPE_TINY:
-			if (isSigned)
-				return *cast(ubyte*)buffer_.ptr == *cast(ubyte*)other.buffer_.ptr;
-			return *cast(byte*)buffer_.ptr == *cast(byte*)other.buffer_.ptr;
-		case MYSQL_TYPE_YEAR:
-		case MYSQL_TYPE_SHORT:
-			if (isSigned)
-				return *cast(short*)buffer_.ptr == *cast(short*)other.buffer_.ptr;
-			return *cast(ushort*)buffer_.ptr == *cast(ushort*)other.buffer_.ptr;
-		case MYSQL_TYPE_INT24:
-		case MYSQL_TYPE_LONG:
-			if (isSigned)
-				return *cast(int*)buffer_.ptr == *cast(int*)other.buffer_.ptr;
-			return *cast(uint*)buffer_.ptr == *cast(uint*)other.buffer_.ptr;
-		case MYSQL_TYPE_LONGLONG:
-			if (isSigned)
-				return *cast(long*)buffer_.ptr == *cast(long*)other.buffer_.ptr;
-			return *cast(ulong*)buffer_.ptr == *cast(ulong*)other.buffer_.ptr;
-		case MYSQL_TYPE_FLOAT:
-			return *cast(float*)buffer_.ptr == *cast(float*)other.buffer_.ptr;
-		case MYSQL_TYPE_DOUBLE:
-			return *cast(double*)buffer_.ptr == *cast(double*)other.buffer_.ptr;
-		case MYSQL_TYPE_SET:
-		case MYSQL_TYPE_ENUM:
-		case MYSQL_TYPE_VARCHAR:
-		case MYSQL_TYPE_VAR_STRING:
-		case MYSQL_TYPE_STRING:
-		case MYSQL_TYPE_JSON:
-		case MYSQL_TYPE_NEWDECIMAL:
-		case MYSQL_TYPE_DECIMAL:
-		case MYSQL_TYPE_TINY_BLOB:
-		case MYSQL_TYPE_MEDIUM_BLOB:
-		case MYSQL_TYPE_LONG_BLOB:
-		case MYSQL_TYPE_BLOB:
-			return *cast(string*)buffer_.ptr == *cast(string*)other.buffer_.ptr;
-		case MYSQL_TYPE_BIT:
-		case MYSQL_TYPE_GEOMETRY:
-			return *cast(ubyte[]*)buffer_.ptr == *cast(ubyte[]*)other.buffer_.ptr;
-		case MYSQL_TYPE_TIME:
-		case MYSQL_TYPE_TIME2:
-			return (*cast(MySQLTime*)buffer_.ptr).toDuration() == (*cast(MySQLTime*)other.buffer_.ptr).toDuration();
-		case MYSQL_TYPE_DATE:
-		case MYSQL_TYPE_NEWDATE:
-		case MYSQL_TYPE_DATETIME:
-		case MYSQL_TYPE_DATETIME2:
-		case MYSQL_TYPE_TIMESTAMP:
-		case MYSQL_TYPE_TIMESTAMP2:
-			return (*cast(MySQLDateTime*)buffer_.ptr).to!DateTime() == (*cast(MySQLDateTime*)other.buffer_.ptr).to!DateTime();
 		}
+		return false;
 	}
 
 	T get(T)(lazy T def) const {
@@ -389,6 +347,221 @@ struct MySQLValue {
 	bool isSigned() const {
 		return sign_ == 0x00;
 	}
+
+	bool isString() const {
+		final switch(type_) with (ColumnTypes) {
+		case MYSQL_TYPE_NULL:
+			return false;
+		case MYSQL_TYPE_TINY:
+		case MYSQL_TYPE_YEAR:
+		case MYSQL_TYPE_SHORT:
+		case MYSQL_TYPE_INT24:
+		case MYSQL_TYPE_LONG:
+		case MYSQL_TYPE_LONGLONG:
+		case MYSQL_TYPE_FLOAT:
+		case MYSQL_TYPE_DOUBLE:
+			return false;
+		case MYSQL_TYPE_SET:
+		case MYSQL_TYPE_ENUM:
+		case MYSQL_TYPE_VARCHAR:
+		case MYSQL_TYPE_VAR_STRING:
+		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
+		case MYSQL_TYPE_NEWDECIMAL:
+		case MYSQL_TYPE_DECIMAL:
+		case MYSQL_TYPE_TINY_BLOB:
+		case MYSQL_TYPE_MEDIUM_BLOB:
+		case MYSQL_TYPE_LONG_BLOB:
+		case MYSQL_TYPE_BLOB:
+			return true;
+		case MYSQL_TYPE_BIT:
+		case MYSQL_TYPE_GEOMETRY:
+			return false;
+		case MYSQL_TYPE_TIME:
+		case MYSQL_TYPE_TIME2:
+			return false;
+		case MYSQL_TYPE_DATE:
+		case MYSQL_TYPE_NEWDATE:
+		case MYSQL_TYPE_DATETIME:
+		case MYSQL_TYPE_DATETIME2:
+		case MYSQL_TYPE_TIMESTAMP:
+		case MYSQL_TYPE_TIMESTAMP2:
+			return false;
+		}
+	}
+
+	bool isScalar() const {
+		final switch(type_) with (ColumnTypes) {
+		case MYSQL_TYPE_NULL:
+			return false;
+		case MYSQL_TYPE_TINY:
+		case MYSQL_TYPE_YEAR:
+		case MYSQL_TYPE_SHORT:
+		case MYSQL_TYPE_INT24:
+		case MYSQL_TYPE_LONG:
+		case MYSQL_TYPE_LONGLONG:
+		case MYSQL_TYPE_FLOAT:
+		case MYSQL_TYPE_DOUBLE:
+			return true;
+		case MYSQL_TYPE_SET:
+		case MYSQL_TYPE_ENUM:
+		case MYSQL_TYPE_VARCHAR:
+		case MYSQL_TYPE_VAR_STRING:
+		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
+		case MYSQL_TYPE_NEWDECIMAL:
+		case MYSQL_TYPE_DECIMAL:
+		case MYSQL_TYPE_TINY_BLOB:
+		case MYSQL_TYPE_MEDIUM_BLOB:
+		case MYSQL_TYPE_LONG_BLOB:
+		case MYSQL_TYPE_BLOB:
+			return false;
+		case MYSQL_TYPE_BIT:
+		case MYSQL_TYPE_GEOMETRY:
+			return false;
+		case MYSQL_TYPE_TIME:
+		case MYSQL_TYPE_TIME2:
+			return false;
+		case MYSQL_TYPE_DATE:
+		case MYSQL_TYPE_NEWDATE:
+		case MYSQL_TYPE_DATETIME:
+		case MYSQL_TYPE_DATETIME2:
+		case MYSQL_TYPE_TIMESTAMP:
+		case MYSQL_TYPE_TIMESTAMP2:
+			return false;
+		}
+	}
+
+	bool isFloatingPoint() const {
+		final switch(type_) with (ColumnTypes) {
+		case MYSQL_TYPE_NULL:
+			return false;
+		case MYSQL_TYPE_TINY:
+		case MYSQL_TYPE_YEAR:
+		case MYSQL_TYPE_SHORT:
+		case MYSQL_TYPE_INT24:
+		case MYSQL_TYPE_LONG:
+		case MYSQL_TYPE_LONGLONG:
+			return false;
+		case MYSQL_TYPE_FLOAT:
+		case MYSQL_TYPE_DOUBLE:
+			return true;
+		case MYSQL_TYPE_SET:
+		case MYSQL_TYPE_ENUM:
+		case MYSQL_TYPE_VARCHAR:
+		case MYSQL_TYPE_VAR_STRING:
+		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
+		case MYSQL_TYPE_NEWDECIMAL:
+		case MYSQL_TYPE_DECIMAL:
+		case MYSQL_TYPE_TINY_BLOB:
+		case MYSQL_TYPE_MEDIUM_BLOB:
+		case MYSQL_TYPE_LONG_BLOB:
+		case MYSQL_TYPE_BLOB:
+			return false;
+		case MYSQL_TYPE_BIT:
+		case MYSQL_TYPE_GEOMETRY:
+			return false;
+		case MYSQL_TYPE_TIME:
+		case MYSQL_TYPE_TIME2:
+			return false;
+		case MYSQL_TYPE_DATE:
+		case MYSQL_TYPE_NEWDATE:
+		case MYSQL_TYPE_DATETIME:
+		case MYSQL_TYPE_DATETIME2:
+		case MYSQL_TYPE_TIMESTAMP:
+		case MYSQL_TYPE_TIMESTAMP2:
+			return false;
+		}
+	}
+
+	bool isTime() const {
+		final switch(type_) with (ColumnTypes) {
+		case MYSQL_TYPE_NULL:
+			return false;
+		case MYSQL_TYPE_TINY:
+		case MYSQL_TYPE_YEAR:
+		case MYSQL_TYPE_SHORT:
+		case MYSQL_TYPE_INT24:
+		case MYSQL_TYPE_LONG:
+		case MYSQL_TYPE_LONGLONG:
+		case MYSQL_TYPE_FLOAT:
+		case MYSQL_TYPE_DOUBLE:
+			return false;
+		case MYSQL_TYPE_SET:
+		case MYSQL_TYPE_ENUM:
+		case MYSQL_TYPE_VARCHAR:
+		case MYSQL_TYPE_VAR_STRING:
+		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
+		case MYSQL_TYPE_NEWDECIMAL:
+		case MYSQL_TYPE_DECIMAL:
+		case MYSQL_TYPE_TINY_BLOB:
+		case MYSQL_TYPE_MEDIUM_BLOB:
+		case MYSQL_TYPE_LONG_BLOB:
+		case MYSQL_TYPE_BLOB:
+			return false;
+		case MYSQL_TYPE_BIT:
+		case MYSQL_TYPE_GEOMETRY:
+			return false;
+		case MYSQL_TYPE_TIME:
+		case MYSQL_TYPE_TIME2:
+			return true;
+		case MYSQL_TYPE_DATE:
+		case MYSQL_TYPE_NEWDATE:
+		case MYSQL_TYPE_DATETIME:
+		case MYSQL_TYPE_DATETIME2:
+		case MYSQL_TYPE_TIMESTAMP:
+		case MYSQL_TYPE_TIMESTAMP2:
+			return false;
+		}
+	}
+
+	alias isDuration = isTime;
+
+	bool isDateTime() const {
+		final switch(type_) with (ColumnTypes) {
+		case MYSQL_TYPE_NULL:
+			return false;
+		case MYSQL_TYPE_TINY:
+		case MYSQL_TYPE_YEAR:
+		case MYSQL_TYPE_SHORT:
+		case MYSQL_TYPE_INT24:
+		case MYSQL_TYPE_LONG:
+		case MYSQL_TYPE_LONGLONG:
+		case MYSQL_TYPE_FLOAT:
+		case MYSQL_TYPE_DOUBLE:
+			return false;
+		case MYSQL_TYPE_SET:
+		case MYSQL_TYPE_ENUM:
+		case MYSQL_TYPE_VARCHAR:
+		case MYSQL_TYPE_VAR_STRING:
+		case MYSQL_TYPE_STRING:
+		case MYSQL_TYPE_JSON:
+		case MYSQL_TYPE_NEWDECIMAL:
+		case MYSQL_TYPE_DECIMAL:
+		case MYSQL_TYPE_TINY_BLOB:
+		case MYSQL_TYPE_MEDIUM_BLOB:
+		case MYSQL_TYPE_LONG_BLOB:
+		case MYSQL_TYPE_BLOB:
+			return false;
+		case MYSQL_TYPE_BIT:
+		case MYSQL_TYPE_GEOMETRY:
+			return false;
+		case MYSQL_TYPE_TIME:
+		case MYSQL_TYPE_TIME2:
+			return false;
+		case MYSQL_TYPE_DATE:
+		case MYSQL_TYPE_NEWDATE:
+		case MYSQL_TYPE_DATETIME:
+		case MYSQL_TYPE_DATETIME2:
+		case MYSQL_TYPE_TIMESTAMP:
+		case MYSQL_TYPE_TIMESTAMP2:
+			return true;
+		}
+	}
+
+	alias isTimestamp = isDateTime;
 
 private:
 	ColumnTypes type_ = ColumnTypes.MYSQL_TYPE_NULL;
