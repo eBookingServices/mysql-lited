@@ -308,7 +308,13 @@ private:
 								continue;
 						}
 
-						__traits(getMember, result, member) = pvalue.get!(Unqual!MemberType);
+						try {
+							__traits(getMember, result, member) = pvalue.get!(Unqual!MemberType);
+						} catch(Exception e) {
+							e.file = File;
+							e.line = Line;
+							throw e;
+						}
 						continue;
 					}
 
