@@ -241,7 +241,7 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		static if (Options & ConnectionOptions.TextProtocol) {
 			query!(File, Line)(sql, args);
 		} else {
-			scope(failure) disconnect();
+			scope(failure) disconnect_();
 
 			auto id = prepare!(File, Line)(sql);
 			execute!(File, Line)(id, args);
@@ -296,7 +296,7 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 	}
 
 	void execute(string File=__FILE__, size_t Line=__LINE__, Args...)(PreparedStatement stmt, Args args) {
-		scope(failure) disconnect();
+		scope(failure) disconnect_();
 
 		ensureConnected();
 
@@ -403,13 +403,22 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		send(Commands.COM_STMT_CLOSE, data);
 	}
 
-	alias OnStatusCallback = void delegate(ConnectionStatus status, const(char)[] message);
+	alias OnStatusCallback = scope void delegate(ConnectionStatus status, const(char)[] message);
 	@property void onStatus(OnStatusCallback callback) {
 		onStatus_ = callback;
 	}
 
 	@property OnStatusCallback onStatus() const {
 		return onStatus_;
+	}
+
+	alias OnDisconnectCallback = scope void delegate();
+	@property void onDisconnect(OnDisconnectCallback callback) {
+		onDisconnect_ = callback;
+	}
+
+	@property OnDisconnectCallback onDisconnect() const {
+		return onDisconnect_;
 	}
 
 	@property ulong insertID() const {
@@ -448,11 +457,23 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		socket_.close();
 	}
 
-	@property void trace(bool tr) { this.trace_ = tr; }
+	@property void trace(bool enable) {
+		trace_ = enable;
+	}
+
+	@property bool trace() {
+		return trace_;
+	}
 
 private:
+	void disconnect_() {
+		disconnect();
+		if (onDisconnect_ && error)
+			onDisconnect_();
+	}
+
 	void query(string File, size_t Line, Args...)(const(char)[] sql, Args args) {
-		scope(failure) disconnect();
+		scope(failure) disconnect_();
 
 		static if (args.length == 0) {
 			enum shouldDiscard = true;
@@ -543,7 +564,7 @@ private:
 	}
 
 	InputPacket retrieve() {
-		scope(failure) disconnect();
+		scope(failure) disconnect_();
 
 		ubyte[4] header;
 		socket_.read(header);
@@ -566,7 +587,7 @@ private:
 	}
 
 	void eatHandshake(InputPacket packet) {
-		scope(failure) disconnect();
+		scope(failure) disconnect_();
 
 		check!(__FILE__, __LINE__)(packet, true);
 
@@ -1116,6 +1137,7 @@ private:
 	Appender!(char[]) sql_;
 
 	OnStatusCallback onStatus_;
+	OnDisconnectCallback onDisconnect_;
 	CapabilityFlags caps_;
 	ConnectionStatus status_;
 	ConnectionSettings settings_;
