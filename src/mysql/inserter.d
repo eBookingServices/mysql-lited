@@ -21,20 +21,20 @@ enum OnDuplicate : size_t {
 }
 
 
-auto inserter(ConnectionType)(ConnectionType connection) {
+auto inserter(ConnectionType)(auto ref ConnectionType connection) {
 	return Inserter!ConnectionType(connection);
 }
 
 
-auto inserter(ConnectionType, Args...)(ConnectionType connection, OnDuplicate action, string tableName, Args columns) {
-	auto insert = Inserter!ConnectionType(connection);
+auto inserter(ConnectionType, Args...)(auto ref ConnectionType connection, OnDuplicate action, string tableName, Args columns) {
+	auto insert = Inserter!ConnectionType(&connection);
 	insert.start(action, tableName, columns);
 	return insert;
 }
 
 
-auto inserter(ConnectionType, Args...)(ConnectionType connection, string tableName, Args columns) {
-	auto insert = Inserter!ConnectionType(connection);
+auto inserter(ConnectionType, Args...)(auto ref ConnectionType connection, string tableName, Args columns) {
+	auto insert = Inserter!ConnectionType(&connection);
 	insert.start(OnDuplicate.Error, tableName, columns);
 	return insert;
 }
@@ -47,8 +47,9 @@ private template isSomeStringOrSomeStringArray(T) {
 
 struct Inserter(ConnectionType) {
 	@disable this();
+	@disable this(this);
 
-	this(ConnectionType connection) {
+	this(ConnectionType* connection) {
 		conn_ = connection;
 		pending_ = 0;
 		flushes_ = 0;
@@ -216,7 +217,7 @@ private:
 	char[] dupUpdate_;
 	Appender!(char[]) values_;
 
-	ConnectionType conn_;
+	ConnectionType* conn_;
 	size_t pending_;
 	size_t flushes_;
 	size_t fields_;
