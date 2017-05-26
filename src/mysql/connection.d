@@ -675,11 +675,15 @@ private:
 			reply.put!ubyte(0);
 		}
 
-		if (settings_.db.length && (caps_ & CapabilityFlags.CLIENT_CONNECT_WITH_DB)) {
-			reply.put(settings_.db);
+		if ((settings_.db.length || schema_.length) && (caps_ & CapabilityFlags.CLIENT_CONNECT_WITH_DB)) {
+			if (schema_.length) {
+				reply.put(schema_);
+			} else {
+				reply.put(settings_.db);
 
-			schema_.length = settings_.db.length;
-			schema_[] = settings_.db[];
+				schema_.length = settings_.db.length;
+				schema_[] = settings_.db[];
+			}
 		}
 
 		reply.put!ubyte(0);
