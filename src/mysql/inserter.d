@@ -10,7 +10,7 @@ import std.traits;
 
 import mysql.appender;
 import mysql.exception;
-
+import mysql.type;
 
 enum OnDuplicate : size_t {
 	Ignore,
@@ -19,7 +19,23 @@ enum OnDuplicate : size_t {
 	Update,
 	UpdateAll,
 }
+// //works for single struct objects.
+// auto insert(ConnectionType, T) (ref ConnectionType connection, const ref T param,  OnDuplicate action = OnDuplicate.Error) {
+// 	auto insert = Inserter!ConnectionType(&connection);
+// 	insert.start(action, param);
+// 	insert.structRow(param);
+// 	insert.flush();
+// }
 
+// //works for array of structs.
+// auto insert(ConnectionType, T) (ref ConnectionType connection, const T[] param, OnDuplicate action = OnDuplicate.Error) {
+// 	assert(param.length > 0);
+// 	auto insert = Inserter!ConnectionType(&connection);
+// 	insert.start(action, param[0]);
+// 	foreach(ref p; param)
+// 		insert.structRow(p);
+// 	insert.flush();
+// }
 
 auto inserter(ConnectionType)(auto ref ConnectionType connection) {
 	return Inserter!ConnectionType(connection);
@@ -62,6 +78,79 @@ struct Inserter(ConnectionType) {
 	void start(Args...)(string tableName, Args fieldNames) if (Args.length && allSatisfy!(isSomeStringOrSomeStringArray, Args)) {
 		start(OnDuplicate.Error, tableName, fieldNames);
 	}
+
+// 	// implement in terms of the above
+// 	void start(T)(OnDuplicate action, T param)  if(is(T == struct)){
+// 		import std.datetime;
+
+// 		static if(getUDAs!(T, TableNameAttribute).length)
+// 			auto tableName = getUDAs!(T, TableNameAttribute)[0].name;
+// 		 else
+// 			 auto tableName = typeid(Unqual!T).name.split('.').array[$-1].toLower;
+
+// 		string [] fieldNames;
+// 		foreach(member; __traits(allMembers, Unqual!T)) {
+// 			static if(isWritableDataMember!(Unqual!T, member)){
+// 				alias MemberType = typeof(__traits(getMember, param, member));
+// 				static if(is(Unqual!MemberType == struct) && !is(Unqual!MemberType == Date) && !is(Unqual!MemberType == DateTime) && !is(Unqual!MemberType == SysTime) && !is(Unqual!MemberType == Duration))
+// 					continue;//just skip it, or we can generate an error.
+
+// 					static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length)
+// 						fieldNames ~= cast(string) getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name;
+// 					else
+// 						fieldNames ~=  member.toLower;				
+// 			}
+// 		}
+
+// 		fields_ = fieldNames.length;
+// 		import std.stdio;
+// 		writefln("field_ %s", fields_);
+
+// 		Appender!(char[]) app;
+
+// 		final switch(action) with (OnDuplicate) {
+// 		case Ignore:
+// 			app.put("insert ignore into ");
+// 			break;
+// 		case Replace:
+// 			app.put("replace into ");
+// 			break;
+// 		case UpdateAll:
+// 			Appender!(char[]) dupapp;
+
+// 			foreach(size_t i, field; fieldNames) {
+// 				dupapp.put('`');
+// 				dupapp.put(fieldNames[i]);
+// 				dupapp.put("`=values(`");
+// 				dupapp.put(fieldNames[i]);
+// 				dupapp.put("`)");
+			
+// 				if (i + 1 != fieldNames.length)
+// 					dupapp.put(',');
+// 			}
+// 			dupUpdate_ = dupapp.data;
+// 			goto case Update;
+// 		case Update:
+// 		case Error:
+// 			app.put("insert into ");
+// 			break;
+// 		}
+
+// 		app.put(tableName);
+// 		app.put('(');
+
+// 		foreach(size_t i, field; fieldNames) {
+// 			app.put('`');
+// 			app.put(fieldNames[i]);
+// 			app.put('`');
+// 			if (i + 1 != fieldNames.length)
+// 				app.put(',');
+// 		}
+
+// 		app.put(")values");
+// 		start_ = app.data;
+// }
+
 
 	void start(Args...)(OnDuplicate action, string tableName, Args fieldNames) if (Args.length && allSatisfy!(isSomeStringOrSomeStringArray, Args)) {
 		auto fieldCount = fieldNames.length;
@@ -120,6 +209,7 @@ struct Inserter(ConnectionType) {
 		app.put('(');
 
 		foreach(size_t i, Arg; Args) {
+			fieldNames_ ~= hashOf(fieldNames[i]);
 			static if (isSomeString!Arg) {
 				app.put('`');
 				app.put(fieldNames[i]);
@@ -145,6 +235,67 @@ struct Inserter(ConnectionType) {
 	auto ref duplicateUpdate(string update) {
 		dupUpdate_ = cast(char[])update;
 		return this;
+	}
+
+	// void structRow(T)(const ref T param){
+	// 	import std.datetime;
+	// 	if (start_.empty)
+	// 		throw new MySQLErrorException("Inserter must be initialized with a call to start()");
+		
+	// 	if (!pending_)
+	// 		values_.put(cast(char[])start_);
+
+	// 	values_.put(pending_ ? ",(" : "(");
+	// 	++pending_;
+		
+	// 	foreach(i, member; __traits(allMembers, T)) {
+	// 		static if(isWritableDataMember!(Unqual!T, member)){
+	// 			alias MemberType = typeof(__traits(getMember, param, member));
+	// 			static if(is(Unqual!MemberType == struct) && !is(Unqual!MemberType == Date) && !is(Unqual!MemberType == DateTime) && !is(Unqual!MemberType == SysTime) && !is(Unqual!MemberType == Duration))
+	// 				continue;//just skip it, or we can generate an error.
+
+	// 				appendValue(values_, __traits(getMember, param, member));
+	// 				if (i != fields_)
+	// 					values_.put(',');
+	// 		}
+	// 	}
+	// 	values_.put(')');
+
+	// 	if (values_.data.length > (128 << 10)) // todo: make parameter
+	// 		flush();
+
+	// 	++rows_;
+	// }
+
+
+	private auto processFieldIndex(T)(ref const T param){
+		ushort[sting] fieldsIndex;
+		foreach(member; __traits(allMembers, T)){
+			// auto indexOfField = fieldNames_.indexOf(hashOf(member));
+			// if (getUDAs!(T, NameAttribute).length){
+			// 	auto nameAttr = getUDAs!(T, NameAttribute)[0].name;
+			// 	indexOfField = fieldNames_.indexOf(hashOf(nameAttr));
+			// }
+			static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){
+				auto nameAttr = getUDAs!(T, NameAttribute)[0].name;
+			 	indexOfField = fieldNames_.indexOf(hashOf(nameAttr));
+			} else {
+				
+			}
+
+		}
+	}
+
+	void row(T)(ref const T param, ushort[string] fieldsIndex) if(is(T == struct)){
+		if (! fieldsIndex.length)
+			fieldsIndex = processFieldIndex(param);
+		
+	}
+
+
+	void rows(T)(ref const T[] param) if(is(T == struct)){
+		foreach(ref p; param)
+			row(p);
 	}
 
 	void row(Values...)(Values values) {
@@ -222,4 +373,5 @@ private:
 	size_t flushes_;
 	size_t fields_;
 	size_t rows_;
+	uint fieldNames_;
 }
