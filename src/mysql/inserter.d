@@ -209,7 +209,8 @@ struct Inserter(ConnectionType) {
 		app.put('(');
 
 		foreach(size_t i, Arg; Args) {
-			fieldNames_ ~= hashOf(fieldNames[i]);
+			fieldsMap_[hashOf(fieldNames[i])] = i;//storing the hash of the fieldName along with its index.
+
 			static if (isSomeString!Arg) {
 				app.put('`');
 				app.put(fieldNames[i]);
@@ -268,52 +269,6 @@ struct Inserter(ConnectionType) {
 	// }
 
 
-	private auto getFiledsIndex(T)(ref const T param){
-		import mysql.row : unCamelCase;
-		ushort[string] indMap;
-		foreach(member; __traits(allMembers, T)){
-			auto index = -1;
-			static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){//if we have name attribute we should only check it
-				auto nameAttr = getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name;
-			 	index = fieldNames_.indexOf(hashOf(nameAttr));
-			} else {
-				static if(getUDAs!(T, UnCamelCaseAttribute).length){//if uncamelcase provided we shoud check both
-					auto index = fieldNames_.indexOf(hashOf(member.unCamelCase));
-					if (index == -1 )
-						index =  fieldNames_.indexOf(hashOf(member));
-				}
-				else {
-					index = fieldNames_.indexOf(hashOf(member.unCamelCase));
-				}
-			}
-			if(index == -1)
-				throw new Exception("missing fields or fields mismatch");
-
-			indMap[member] = index;
-		}
-
-		return indMap;
-	}
-
-	void row(T)(ref const T param, ref ushort[string] indMap = ushort[string].init) if(is(T == struct)){
-		if (! indMap.length)
-			indMap = getFiledsIndex(param);
-		
-		for(ushort i = 0; i < fieldNames_.length; i++){
-			
-		}
-		
-		
-		
-	}
-
-
-	void rows(T)(ref const T[] param) if(is(T == struct)){
-		auto indMap = getFiledsIndex(param);
-		foreach(ref p; param)
-			row(p, indMap);
-	}
-
 	void row(Values...)(Values values) {
 		if (start_.empty)
 			throw new MySQLErrorException("Inserter must be initialized with a call to start()");
@@ -349,6 +304,97 @@ struct Inserter(ConnectionType) {
 			flush();
 
 		++rows_;
+	}
+
+	void row(T)(ref const T param) if(is(T == struct)){
+		row(param, getFiledsIndex(param));
+	}
+
+	void rows(T)(ref const T[] param) if(is(T == struct)){
+		assert (param.length > 0);
+		auto indMap = getFiledsIndex(param[0]);
+		foreach(ref p; param)
+			row(p, indMap);
+	}
+
+	private void row(T)(string[] values, ref const T param) {
+		if (start_.empty)
+			throw new MySQLErrorException("Inserter must be initialized with a call to start()");
+
+		auto valueCount = values.length;
+
+		if (valueCount != fields_)
+			throw new MySQLErrorException(format("Wrong number of parameters for row. Got %d but expected %d.", valueCount, fields_));
+
+		if (!pending_)
+			values_.put(cast(char[])start_);
+
+		values_.put(pending_ ? ",(" : "(");
+		++pending_;
+		foreach (size_t i, value; values) {
+			
+			foreach(member; __traits(allMembers, T)){
+				if(member == values[i])
+					appendValue(values_, __traits(getMember, param, member));
+			}
+
+			if (i != values.length-1)
+				values_.put(',');
+		}
+		values_.put(')');
+
+		if (values_.data.length > (128 << 10)) // todo: make parameter
+			flush();
+
+		++rows_;
+	}
+
+	private auto getFiledsIndex(T)(ref const T param){
+		import mysql.row : unCamelCase;
+		import std.algorithm: countUntil;
+		import std.stdio;
+
+		string[long] indMap;
+		long index = -1;
+			foreach(member; __traits(allMembers, T)){//find the index of the respective member for this field.
+				index = -1;
+				static if(isReadableDataMember!(Unqual!T, member)){
+					static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){//if we have name attribute we should only check it
+					auto name = getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name;
+						if(auto i = hashOf(name) in fieldsMap_)
+							index = *i;
+					}
+					else {
+						static if(getUDAs!(T, UnCamelCaseAttribute).length){//if uncamelcase provided we shoud check both
+							if(auto i = hashOf(member) in fieldsMap_)
+								index = *i;
+							if(auto i = hashOf(member.unCamelCase) in fieldsMap_)
+								index = *i;
+							}
+						else {
+							if(auto i = hashOf(member) in fieldsMap_)
+								index = *i;
+						}
+					}
+					if(index != -1)
+						indMap[index] = member;
+					else
+						writefln("member %s not specified in the fields list.", member);
+				}
+			}
+
+		return indMap;
+	}
+
+
+	private void row(T)(ref const T param, ref string[long] indMap) if(is(T == struct)){
+		string[] values;
+		values.reserve(fields_);
+		for(ushort i = 0; i < fields_; i++){
+			if(auto index = i in indMap)
+				values ~=  *index;
+		}
+		row(values, param);
 	}
 
 	@property size_t rows() const {
@@ -389,5 +435,5 @@ private:
 	size_t flushes_;
 	size_t fields_;
 	size_t rows_;
-	uint fieldNames_;
+	size_t[size_t] fieldsMap_;
 }
