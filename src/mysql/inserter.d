@@ -268,34 +268,50 @@ struct Inserter(ConnectionType) {
 	// }
 
 
-	private auto processFieldIndex(T)(ref const T param){
-		ushort[sting] fieldsIndex;
+	private auto getFiledsIndex(T)(ref const T param){
+		import mysql.row : unCamelCase;
+		ushort[string] indMap;
 		foreach(member; __traits(allMembers, T)){
-			// auto indexOfField = fieldNames_.indexOf(hashOf(member));
-			// if (getUDAs!(T, NameAttribute).length){
-			// 	auto nameAttr = getUDAs!(T, NameAttribute)[0].name;
-			// 	indexOfField = fieldNames_.indexOf(hashOf(nameAttr));
-			// }
-			static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){
-				auto nameAttr = getUDAs!(T, NameAttribute)[0].name;
-			 	indexOfField = fieldNames_.indexOf(hashOf(nameAttr));
+			auto index = -1;
+			static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){//if we have name attribute we should only check it
+				auto nameAttr = getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name;
+			 	index = fieldNames_.indexOf(hashOf(nameAttr));
 			} else {
-				
+				static if(getUDAs!(T, UnCamelCaseAttribute).length){//if uncamelcase provided we shoud check both
+					auto index = fieldNames_.indexOf(hashOf(member.unCamelCase));
+					if (index == -1 )
+						index =  fieldNames_.indexOf(hashOf(member));
+				}
+				else {
+					index = fieldNames_.indexOf(hashOf(member.unCamelCase));
+				}
 			}
+			if(index == -1)
+				throw new Exception("missing fields or fields mismatch");
 
+			indMap[member] = index;
 		}
+
+		return indMap;
 	}
 
-	void row(T)(ref const T param, ushort[string] fieldsIndex) if(is(T == struct)){
-		if (! fieldsIndex.length)
-			fieldsIndex = processFieldIndex(param);
+	void row(T)(ref const T param, ref ushort[string] indMap = ushort[string].init) if(is(T == struct)){
+		if (! indMap.length)
+			indMap = getFiledsIndex(param);
+		
+		for(ushort i = 0; i < fieldNames_.length; i++){
+			
+		}
+		
+		
 		
 	}
 
 
 	void rows(T)(ref const T[] param) if(is(T == struct)){
+		auto indMap = getFiledsIndex(param);
 		foreach(ref p; param)
-			row(p);
+			row(p, indMap);
 	}
 
 	void row(Values...)(Values values) {

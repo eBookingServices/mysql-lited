@@ -282,7 +282,7 @@ private:
 	uint[] index_;
 }
 
-private string unCamelCase(string x) {
+string unCamelCase(string x) {
 	assert(x.length <= 64);
 
 	enum CharClass {
