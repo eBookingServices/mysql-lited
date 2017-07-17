@@ -43,7 +43,7 @@ struct TableNameAttribute {const(char)[] name;}
 }
 
 template isValueType(T){
-	static if(is(Unqual!T == struct) && !is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration))
+	static if(is(Unqual!T == struct) && !is(Unqual!T == MySQLValue) &&!is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration))
 		enum isValueType = false;
 	else
 		enum isValueType = true;
@@ -91,7 +91,7 @@ template isReadableDataMember(T, string Member) {
 		enum isReadableDataMember = false;
 	} else static if (isAssociativeArray!(typeof(__traits(getMember, T, Member)))) {
 		enum isReadableDataMember = false;
-	} else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))) {
+	} else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))  /* && return type is valueType*/ ) {
 		enum isReadableDataMember = true;
 	} else static if (!is(typeof((){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }()))) {
 		enum isReadableDataMember = false;
