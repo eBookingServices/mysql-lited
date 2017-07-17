@@ -118,20 +118,21 @@ struct Inserter(ConnectionType) {
 		app.put(tableName);
 		app.put('(');
 
-		fieldsHash_.length = fieldNames.length;
-		fieldsNames_.length = fieldNames.length;
-
 		foreach(size_t i, Arg; Args) {
-			fieldsHash_[i] = hashOf(fieldNames[i]);//storing the hash of the fieldName
-			fieldsNames_[i] = fieldNames[i];
-
 			static if (isSomeString!Arg) {
+				fieldsHash_ ~= hashOf(fieldNames[i]);
+				fieldsNames_ ~= fieldNames[i];
+
 				app.put('`');
 				app.put(fieldNames[i]);
 				app.put('`');
 			} else {
 				auto columns = fieldNames[i];
 				foreach (j, name; columns) {
+
+					fieldsHash_ ~= hashOf(name);
+					fieldsNames_ ~= name;
+
 					app.put('`');
 					app.put(name);
 					app.put('`');
