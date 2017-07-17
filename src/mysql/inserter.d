@@ -152,7 +152,7 @@ struct Inserter(ConnectionType) {
 		return this;
 	}
 
-	void rows(T)(ref const T [] param) if(!isValueStruct!T){
+	void rows(T)(ref const T [] param) if(!isValueType!T){
 		if(param.length < 1)
 			return;
 		
@@ -160,7 +160,7 @@ struct Inserter(ConnectionType) {
 			row(p);
 	}
 
-	void row(T)(ref const T param) if(!isValueStruct!T){
+	void row(T)(ref const T param) if(!isValueType!T){
 		scope (failure) reset();
 
 		if (start_.empty)
@@ -217,8 +217,8 @@ struct Inserter(ConnectionType) {
 
 		++rows_;
 	}
-
-	void row(Values...)(Values values) if(!is(typeof(values[0]) == struct)) {
+	
+	void row(Values...)(Values values) if(allSatisfy!(isValueType, Values)) {
 
 		scope(failure) reset();
 

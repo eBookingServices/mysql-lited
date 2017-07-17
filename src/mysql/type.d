@@ -42,11 +42,11 @@ struct TableNameAttribute {const(char)[] name;}
 	return UnCamelCaseAttribute();
 }
 
-template isValueStruct(T){
+template isValueType(T){
 	static if(is(Unqual!T == struct) && !is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration))
-		enum isValueStruct = false;
+		enum isValueType = false;
 	else
-		enum isValueStruct = true;
+		enum isValueType = true;
 }
 
 

@@ -227,7 +227,7 @@ private:
 
 				alias MemberType = typeof(__traits(getMember, result, member));
 
-				static if (! isValueStruct!MemberType) {
+				static if (! isValueType!MemberType) {
 					enum pathNew = pathMember ~ ".";
 					static if (hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
 						structurize!(MemberType, Strict.no, pathNew, File, Line)(__traits(getMember, result, member));
