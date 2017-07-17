@@ -118,8 +118,12 @@ struct Inserter(ConnectionType) {
 		app.put(tableName);
 		app.put('(');
 
+		fieldsHash_.length = fieldNames.length;
+		fieldsNames_.length = fieldNames.length;
+
 		foreach(size_t i, Arg; Args) {
-			fieldsMap_[hashOf(fieldNames[i])] = i;//storing the hash of the fieldName along with its index.
+			fieldsHash_[i] = hashOf(fieldNames[i]);//storing the hash of the fieldName
+			fieldsNames_[i] = fieldNames[i];
 
 			static if (isSomeString!Arg) {
 				app.put('`');
@@ -148,7 +152,76 @@ struct Inserter(ConnectionType) {
 		return this;
 	}
 
-	void row(Values...)(Values values) {
+	void rows(T)(ref const T [] param) if(!isValueStruct!T){
+		if(param.length < 1)
+			return;
+		
+		foreach(ref p; param)
+			row(p);
+	}
+
+	void row(T)(ref const T param) if(!isValueStruct!T){
+		scope (failure) reset();
+
+		if (start_.empty)
+			throw new MySQLErrorException("Inserter must be initialized with a call to start()");
+
+		if (!pending_)
+			values_.put(cast(char[])start_);
+
+		values_.put(pending_ ? ",(" : "(");
+		++pending_;
+
+		auto fieldFound = false;
+		for(int i = 0; i < fieldsHash_.length; i++){
+			fieldFound = false;
+			foreach(member; __traits(allMembers, T)){
+				static if(isReadableDataMember!(Unqual!T, member)){
+					static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){//if we have name attribute we should only check it
+					enum nameHash = hashOf(getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name);
+						if(nameHash == fieldsHash_.ptr[i]){
+							appendValue(values_, __traits(getMember, param, member));
+							fieldFound = true;
+						}
+					}
+					else {
+						enum memberHash = hashOf(member);
+						static if(getUDAs!(T, UnCamelCaseAttribute).length){//if uncamelcase provided we shoud check both
+							import mysql.row: unCamelCase;
+							enum unCamelMemberHash = hashOf(member.unCamelCase);
+							if(memberHash == fieldsHash_.ptr[i] || unCamelMemberHash == fieldsHash_.ptr[i] ){
+								appendValue(values_, __traits(getMember, param, member));
+								fieldFound = true;
+							}
+						}
+						else {
+							if(memberHash == fieldsHash_.ptr[i]){
+								appendValue(values_, __traits(getMember, param, member));
+								fieldFound = true;
+							}
+						}
+					}
+				}
+			}
+
+			if(!fieldFound)
+				throw new MySQLErrorException(format("field '%s' was not found in struct => '%s' members", fieldsNames_.ptr[i], typeid(Unqual!T).name));
+
+			if (i != fields_-1)
+				values_.put(',');
+		}
+		values_.put(')');
+
+		if (values_.data.length > (128 << 10)) // todo: make parameter
+			flush();
+
+		++rows_;
+	}
+
+	void row(Values...)(Values values) if(!is(typeof(values[0]) == struct)) {
+
+		scope(failure) reset();
+
 		if (start_.empty)
 			throw new MySQLErrorException("Inserter must be initialized with a call to start()");
 
@@ -185,96 +258,7 @@ struct Inserter(ConnectionType) {
 		++rows_;
 	}
 
-	void row(T)(ref const T param) if(is(T == struct)){
-		row(param, getFiledsIndex(param));
-	}
 
-	void rows(T)(ref const T[] param) if(is(T == struct)){
-		assert (param.length > 0);
-		auto indMap = getFiledsIndex(param[0]);
-		foreach(ref p; param)
-			row(p, indMap);
-	}
-
-	private void row(T)(string[] values, ref const T param) {
-		if (start_.empty)
-			throw new MySQLErrorException("Inserter must be initialized with a call to start()");
-
-		auto valueCount = values.length;
-
-		if (valueCount != fields_)
-			throw new MySQLErrorException(format("Wrong number of parameters for row. Got %d but expected %d.", valueCount, fields_));
-
-		if (!pending_)
-			values_.put(cast(char[])start_);
-
-		values_.put(pending_ ? ",(" : "(");
-		++pending_;
-		foreach (size_t i, value; values) {
-			
-			foreach(member; __traits(allMembers, T)){
-				if(member == values[i])
-					appendValue(values_, __traits(getMember, param, member));
-			}
-
-			if (i != values.length-1)
-				values_.put(',');
-		}
-		values_.put(')');
-
-		if (values_.data.length > (128 << 10)) // todo: make parameter
-			flush();
-
-		++rows_;
-	}
-
-	private auto getFiledsIndex(T)(ref const T param){
-		import mysql.row : unCamelCase;
-		import std.algorithm: countUntil;
-		import std.stdio;
-
-		string[long] indMap;
-		long index = -1;
-			foreach(member; __traits(allMembers, T)){//find the index of the respective member for this field.
-				index = -1;
-				static if(isReadableDataMember!(Unqual!T, member)){
-					static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){//if we have name attribute we should only check it
-					auto name = getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name;
-						if(auto i = hashOf(name) in fieldsMap_)
-							index = *i;
-					}
-					else {
-						static if(getUDAs!(T, UnCamelCaseAttribute).length){//if uncamelcase provided we shoud check both
-							if(auto i = hashOf(member) in fieldsMap_)
-								index = *i;
-							if(auto i = hashOf(member.unCamelCase) in fieldsMap_)
-								index = *i;
-							}
-						else {
-							if(auto i = hashOf(member) in fieldsMap_)
-								index = *i;
-						}
-					}
-					if(index != -1)
-						indMap[index] = member;
-					else
-						writefln("member %s not specified in the fields list.", member);
-				}
-			}
-
-		return indMap;
-	}
-
-
-	private void row(T)(ref const T param, ref string[long] indMap) if(is(T == struct)){
-		string[] values;
-		values.reserve(fields_);
-		for(ushort i = 0; i < fields_; i++){
-			if(auto index = i in indMap)
-				values ~=  *index;
-		}
-		row(values, param);
-	}
 
 	@property size_t rows() const {
 		return rows_ != 0;
@@ -287,6 +271,11 @@ struct Inserter(ConnectionType) {
 	@property size_t flushes() const {
 		return flushes_;
 	}
+	
+	private void reset(){
+		values_.clear;
+		pending_ = 0;
+	}
 
 	void flush() {
 		if (pending_) {
@@ -296,8 +285,7 @@ struct Inserter(ConnectionType) {
 			}
 
 			auto sql = cast(char[])values_.data();
-			values_.clear;
-			pending_ = 0;
+			reset();
 
 			conn_.execute(sql);
 			++flushes_;
@@ -314,5 +302,6 @@ private:
 	size_t flushes_;
 	size_t fields_;
 	size_t rows_;
-	size_t[size_t] fieldsMap_;
+	string[] fieldsNames_;
+	size_t[] fieldsHash_;
 }

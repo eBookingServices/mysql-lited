@@ -42,6 +42,14 @@ struct TableNameAttribute {const(char)[] name;}
 	return UnCamelCaseAttribute();
 }
 
+template isValueStruct(T){
+	static if(is(Unqual!T == struct) && !is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration))
+		enum isValueStruct = false;
+	else
+		enum isValueStruct = true;
+}
+
+
 template isWritableDataMember(T, string Member) {
 	static if (is(TypeTuple!(__traits(getMember, T, Member)))) {
 		enum isWritableDataMember = false;
@@ -84,7 +92,7 @@ template isReadableDataMember(T, string Member) {
 	} else static if (isAssociativeArray!(typeof(__traits(getMember, T, Member)))) {
 		enum isReadableDataMember = false;
 	} else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))) {
-		enum isReadableDataMember = false;
+		enum isReadableDataMember = true;
 	} else static if (!is(typeof((){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }()))) {
 		enum isReadableDataMember = false;
 	} else static if ((__traits(getProtection, __traits(getMember, T, Member)) != "public") && (__traits(getProtection, __traits(getMember, T, Member)) != "export")) {

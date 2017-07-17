@@ -227,7 +227,7 @@ private:
 
 				alias MemberType = typeof(__traits(getMember, result, member));
 
-				static if (is(Unqual!MemberType == struct) && !is(Unqual!MemberType == Date) && !is(Unqual!MemberType == DateTime) && !is(Unqual!MemberType == SysTime) && !is(Unqual!MemberType == Duration)) {
+				static if (! isValueStruct!MemberType) {
 					enum pathNew = pathMember ~ ".";
 					static if (hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
 						structurize!(MemberType, Strict.no, pathNew, File, Line)(__traits(getMember, result, member));
