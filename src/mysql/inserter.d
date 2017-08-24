@@ -196,7 +196,7 @@ struct Inserter(ConnectionType) {
 		return flushes_;
 	}
 
-	void flush() {
+	void flush(string File=__FILE__, size_t Line=__LINE__)() {
 		if (pending_) {
 			if (dupUpdate_.length) {
 				values_.put(cast(ubyte[])" on duplicate key update ");
@@ -207,7 +207,7 @@ struct Inserter(ConnectionType) {
 			values_.clear;
 			pending_ = 0;
 
-			conn_.execute(sql);
+			conn_.execute!(File, Line)(sql);
 			++flushes_;
 		}
 	}
