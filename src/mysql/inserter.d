@@ -161,6 +161,35 @@ struct Inserter(ConnectionType) {
 			row(p);
 	}
 
+	private auto tryAppendField(string member, string parentMembers = "", T)(ref const T param, ref size_t fieldHash, ref bool fieldFound){
+		static if(isReadableDataMember!(Unqual!T, member)){
+			alias memberType = typeof(__traits(getMember, param, member));			
+			static if(isValueType!(memberType)){
+				static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){
+					enum nameHash = hashOf(parentMembers~getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name);
+				}
+				else{
+					enum nameHash = hashOf(parentMembers~member);
+				}
+				if(nameHash == fieldHash || (parentMembers == "" && getUDAs!(T, UnCamelCaseAttribute).length && hashOf(member.unCamelCase) == fieldHash)){
+					appendValue(values_, __traits(getMember, param, member));
+					fieldFound = true;
+					return;
+				}
+			}else{
+				foreach(subMember; __traits(allMembers, memberType)){
+					static if(parentMembers == "")
+						tryAppendField!(subMember, member~".")(__traits(getMember, param, member), fieldHash, fieldFound);					
+					else
+						tryAppendField!(subMember, parentMembers~member~".")(__traits(getMember, param, member), fieldHash, fieldFound);
+						
+					if(fieldFound)
+						return;
+				}
+			}
+		}
+	}
+
 	void row(T)(ref const T param) if(!isValueType!T){
 		scope (failure) reset();
 
@@ -173,38 +202,14 @@ struct Inserter(ConnectionType) {
 		values_.put(pending_ ? ",(" : "(");
 		++pending_;
 
-		auto fieldFound = false;
-		for(int i = 0; i < fieldsHash_.length; i++){
+		bool fieldFound;
+		foreach(i, ref fieldHash; fieldsHash_){
 			fieldFound = false;
 			foreach(member; __traits(allMembers, T)){
-				static if(isReadableDataMember!(Unqual!T, member)){
-					static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){//if we have name attribute we should only check it
-					enum nameHash = hashOf(getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name);
-						if(nameHash == fieldsHash_.ptr[i]){
-							appendValue(values_, __traits(getMember, param, member));
-							fieldFound = true;
-						}
-					}
-					else {
-						enum memberHash = hashOf(member);
-						static if(getUDAs!(T, UnCamelCaseAttribute).length){//if uncamelcase provided we shoud check both
-							import mysql.row: unCamelCase;
-							enum unCamelMemberHash = hashOf(member.unCamelCase);
-							if(memberHash == fieldsHash_.ptr[i] || unCamelMemberHash == fieldsHash_.ptr[i] ){
-								appendValue(values_, __traits(getMember, param, member));
-								fieldFound = true;
-							}
-						}
-						else {
-							if(memberHash == fieldsHash_.ptr[i]){
-								appendValue(values_, __traits(getMember, param, member));
-								fieldFound = true;
-							}
-						}
-					}
-				}
+				 tryAppendField!member(param, fieldHash, fieldFound);
+				 if(fieldFound)
+				 	break;
 			}
-
 			if(!fieldFound)
 				throw new MySQLErrorException(format("field '%s' was not found in struct => '%s' members", fieldsNames_.ptr[i], typeid(Unqual!T).name));
 
