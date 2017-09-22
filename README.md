@@ -67,22 +67,22 @@ void usedb() {
 	struct InsuranceInfo{
 		int number = 50;
 		Date started = Date(2015,12,25);
-		@sqlignore string description = "insurance description";
+		@ignore string description = "insurance description";
 		Info info;
 	}
 
 	struct BankInfo{
 		string iban;
 		string name;
-		@sqlname("country") string bankCountry;
+		@as("country") string bankCountry;
 	}
 
 	struct Client{
-		@sqlname("name") string clientName = "default name";
-		@sqlname("email") string emailAddress = "default email";
-		@sqlname("token") string uniuqeToken = "default token";
-		@sqlname("birth_date") Date birthDate = Date(1991, 9, 9); 
-		@sqlignore string moreInfoString;	
+		@as("name") string clientName = "default name";
+		@as("email") string emailAddress = "default email";
+		@as("token") string uniuqeToken = "default token";
+		@as("birth_date") Date birthDate = Date(1991, 9, 9); 
+		@ignore string moreInfoString;	
 		InsuranceInfo insurance;
 		BankInfo bank;
 	}
@@ -92,7 +92,7 @@ void usedb() {
 	  "insurance.number", "insurance.started", "insurance.info.employee", "insurance.info.duration_in_months");
 	inserter.row(client);
 
-	auto dbClient = db.fetchOne!Client("select * from client limit 1");
+	auto dbClient = conn.fetchOne!Client("select * from client limit 1");
 
 	assert(client.serialize == dbClient.serialize)
 
