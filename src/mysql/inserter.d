@@ -118,7 +118,7 @@ struct Inserter(ConnectionType) {
 		app.put(tableName);
 		app.put('(');
 
-		foreach(size_t i, Arg; Args) {
+		foreach (size_t i, Arg; Args) {
 			static if (isSomeString!Arg) {
 				fieldsHash_ ~= hashOf(fieldNames[i]);
 				fieldsNames_ ~= fieldNames[i];
@@ -153,44 +153,45 @@ struct Inserter(ConnectionType) {
 		return this;
 	}
 
-	void rows(T)(ref const T [] param) if(!isValueType!T){
-		if(param.length < 1)
+	void rows(T)(ref const T [] param) if (!isValueType!T) {
+		if (param.length < 1)
 			return;
-		
-		foreach(ref p; param)
+
+		foreach (ref p; param)
 			row(p);
 	}
 
-	private auto tryAppendField(string member, string parentMembers = "", T)(ref const T param, ref size_t fieldHash, ref bool fieldFound){
-		static if(isReadableDataMember!(Unqual!T, member)){
-			alias memberType = typeof(__traits(getMember, param, member));			
-			static if(isValueType!(memberType)){
-				static if(getUDAs!(__traits(getMember, param, member), NameAttribute).length){
+	private auto tryAppendField(string member, string parentMembers = "", T)(ref const T param, ref size_t fieldHash, ref bool fieldFound) {
+		static if (isReadableDataMember!(Unqual!T, member)) {
+			alias memberType = typeof(__traits(getMember, param, member));
+			static if (isValueType!(memberType)) {
+				static if (getUDAs!(__traits(getMember, param, member), NameAttribute).length){
 					enum nameHash = hashOf(parentMembers~getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name);
 				}
-				else{
+				else {
 					enum nameHash = hashOf(parentMembers~member);
 				}
-				if(nameHash == fieldHash || (parentMembers == "" && getUDAs!(T, UnCamelCaseAttribute).length && hashOf(member.unCamelCase) == fieldHash)){
+				if (nameHash == fieldHash || (parentMembers == "" && getUDAs!(T, UnCamelCaseAttribute).length && hashOf(member.unCamelCase) == fieldHash)) {
 					appendValue(values_, __traits(getMember, param, member));
 					fieldFound = true;
 					return;
 				}
-			}else{
-				foreach(subMember; __traits(allMembers, memberType)){
-					static if(parentMembers == "")
-						tryAppendField!(subMember, member~".")(__traits(getMember, param, member), fieldHash, fieldFound);					
-					else
+			} else {
+				foreach (subMember; __traits(allMembers, memberType)) {
+					static if (parentMembers == "") {
+						tryAppendField!(subMember, member~".")(__traits(getMember, param, member), fieldHash, fieldFound);
+					} else {
 						tryAppendField!(subMember, parentMembers~member~".")(__traits(getMember, param, member), fieldHash, fieldFound);
-						
-					if(fieldFound)
+					}
+
+					if (fieldFound)
 						return;
 				}
 			}
 		}
 	}
 
-	void row(T)(ref const T param) if(!isValueType!T){
+	void row (T) (ref const T param) if (!isValueType!T) {
 		scope (failure) reset();
 
 		if (start_.empty)
@@ -203,14 +204,14 @@ struct Inserter(ConnectionType) {
 		++pending_;
 
 		bool fieldFound;
-		foreach(i, ref fieldHash; fieldsHash_){
+		foreach (i, ref fieldHash; fieldsHash_) {
 			fieldFound = false;
-			foreach(member; __traits(allMembers, T)){
+			foreach (member; __traits(allMembers, T)) {
 				 tryAppendField!member(param, fieldHash, fieldFound);
-				 if(fieldFound)
+				 if (fieldFound)
 				 	break;
 			}
-			if(!fieldFound)
+			if (!fieldFound)
 				throw new MySQLErrorException(format("field '%s' was not found in struct => '%s' members", fieldsNames_.ptr[i], typeid(Unqual!T).name));
 
 			if (i != fields_-1)
@@ -223,7 +224,7 @@ struct Inserter(ConnectionType) {
 
 		++rows_;
 	}
-	
+
 	void row(Values...)(Values values) if(allSatisfy!(isValueType, Values)) {
 
 		scope(failure) reset();
@@ -277,7 +278,7 @@ struct Inserter(ConnectionType) {
 	@property size_t flushes() const {
 		return flushes_;
 	}
-	
+
 	private void reset(){
 		values_.clear;
 		pending_ = 0;

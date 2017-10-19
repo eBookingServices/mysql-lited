@@ -19,7 +19,7 @@ struct NameAttribute { const(char)[] name; }
 struct UnCamelCaseAttribute {}
 struct TableNameAttribute {const(char)[] name;}
 
-@property TableNameAttribute tableName(const(char)[] name){
+@property TableNameAttribute tableName(const(char)[] name) {
 	return TableNameAttribute(name);
 }
 
@@ -42,11 +42,12 @@ struct TableNameAttribute {const(char)[] name;}
 	return UnCamelCaseAttribute();
 }
 
-template isValueType(T){
-	static if(is(Unqual!T == struct) && !is(Unqual!T == MySQLValue) &&!is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration))
+template isValueType(T) {
+	static if (is(Unqual!T == struct) && !is(Unqual!T == MySQLValue) &&!is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration)) {
 		enum isValueType = false;
-	else
+	} else {
 		enum isValueType = true;
+	}
 }
 
 
