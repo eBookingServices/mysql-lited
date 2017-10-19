@@ -11,60 +11,6 @@ import std.format : format;
 import mysql.exception;
 import mysql.type;
 
-
-private struct IgnoreAttribute {}
-private struct OptionalAttribute {}
-private struct NameAttribute { const(char)[] name; }
-private struct UnCamelCaseAttribute {}
-
-
-@property IgnoreAttribute ignore() {
-	return IgnoreAttribute();
-}
-
-
-@property OptionalAttribute optional() {
-	return OptionalAttribute();
-}
-
-
-@property NameAttribute as(const(char)[] name)  {
-	return NameAttribute(name);
-}
-
-
-@property UnCamelCaseAttribute uncamel() {
-	return UnCamelCaseAttribute();
-}
-
-
-template isWritableDataMember(T, string Member) {
-	static if (is(TypeTuple!(__traits(getMember, T, Member)))) {
-		enum isWritableDataMember = false;
-	} else static if (!is(typeof(__traits(getMember, T, Member)))) {
-		enum isWritableDataMember = false;
-	} else static if (is(typeof(__traits(getMember, T, Member)) == void)) {
-		enum isWritableDataMember = false;
-	} else static if (is(typeof(__traits(getMember, T, Member)) == enum)) {
-		enum isWritableDataMember = true;
-	} else static if (hasUDA!(__traits(getMember, T, Member), IgnoreAttribute)) {
-		enum isWritableDataMember = false;
-	} else static if (isArray!(typeof(__traits(getMember, T, Member))) && !is(typeof(typeof(__traits(getMember, T, Member)).init[0]) == ubyte) && !is(typeof(__traits(getMember, T, Member)) == string)) {
-		enum isWritableDataMember = false;
-	} else static if (isAssociativeArray!(typeof(__traits(getMember, T, Member)))) {
-		enum isWritableDataMember = false;
-	} else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))) {
-		enum isWritableDataMember = false;
-	} else static if (!is(typeof((){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }()))) {
-		enum isWritableDataMember = false;
-	} else static if ((__traits(getProtection, __traits(getMember, T, Member)) != "public") && (__traits(getProtection, __traits(getMember, T, Member)) != "export")) {
-		enum isWritableDataMember = false;
-	} else {
-		enum isWritableDataMember = true;
-	}
-}
-
-
 enum Strict {
 	yes = 0,
 	yesIgnoreNull,
@@ -281,7 +227,7 @@ private:
 
 				alias MemberType = typeof(__traits(getMember, result, member));
 
-				static if (is(Unqual!MemberType == struct) && !is(Unqual!MemberType == Date) && !is(Unqual!MemberType == DateTime) && !is(Unqual!MemberType == SysTime) && !is(Unqual!MemberType == Duration)) {
+				static if (! isValueType!MemberType) {
 					enum pathNew = pathMember ~ ".";
 					static if (hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
 						structurize!(MemberType, Strict.no, pathNew, File, Line)(__traits(getMember, result, member));
@@ -336,7 +282,7 @@ private:
 	uint[] index_;
 }
 
-private string unCamelCase(string x) {
+string unCamelCase(string x) {
 	assert(x.length <= 64);
 
 	enum CharClass {

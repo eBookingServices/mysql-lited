@@ -13,6 +13,95 @@ import mysql.packet;
 import mysql.exception;
 public import mysql.row;
 
+struct IgnoreAttribute {}
+struct OptionalAttribute {}
+struct NameAttribute { const(char)[] name; }
+struct UnCamelCaseAttribute {}
+struct TableNameAttribute {const(char)[] name;}
+
+@property TableNameAttribute tableName(const(char)[] name) {
+	return TableNameAttribute(name);
+}
+
+@property IgnoreAttribute ignore() {
+	return IgnoreAttribute();
+}
+
+
+@property OptionalAttribute optional() {
+	return OptionalAttribute();
+}
+
+
+@property NameAttribute as(const(char)[] name)  {
+	return NameAttribute(name);
+}
+
+
+@property UnCamelCaseAttribute uncamel() {
+	return UnCamelCaseAttribute();
+}
+
+template isValueType(T) {
+	static if (is(Unqual!T == struct) && !is(Unqual!T == MySQLValue) &&!is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration)) {
+		enum isValueType = false;
+	} else {
+		enum isValueType = true;
+	}
+}
+
+
+template isWritableDataMember(T, string Member) {
+	static if (is(TypeTuple!(__traits(getMember, T, Member)))) {
+		enum isWritableDataMember = false;
+	} else static if (!is(typeof(__traits(getMember, T, Member)))) {
+		enum isWritableDataMember = false;
+	} else static if (is(typeof(__traits(getMember, T, Member)) == void)) {
+		enum isWritableDataMember = false;
+	} else static if (is(typeof(__traits(getMember, T, Member)) == enum)) {
+		enum isWritableDataMember = true;
+	} else static if (hasUDA!(__traits(getMember, T, Member), IgnoreAttribute)) {
+		enum isWritableDataMember = false;
+	} else static if (isArray!(typeof(__traits(getMember, T, Member))) && !is(typeof(typeof(__traits(getMember, T, Member)).init[0]) == ubyte) && !is(typeof(__traits(getMember, T, Member)) == string)) {
+		enum isWritableDataMember = false;
+	} else static if (isAssociativeArray!(typeof(__traits(getMember, T, Member)))) {
+		enum isWritableDataMember = false;
+	} else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))) {
+		enum isWritableDataMember = false;
+	} else static if (!is(typeof((){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }()))) {
+		enum isWritableDataMember = false;
+	} else static if ((__traits(getProtection, __traits(getMember, T, Member)) != "public") && (__traits(getProtection, __traits(getMember, T, Member)) != "export")) {
+		enum isWritableDataMember = false;
+	} else {
+		enum isWritableDataMember = true;
+	}
+}
+
+template isReadableDataMember(T, string Member) {
+	static if (is(TypeTuple!(__traits(getMember, T, Member)))) {
+		enum isReadableDataMember = false;
+	} else static if (!is(typeof(__traits(getMember, T, Member)))) {
+		enum isReadableDataMember = false;
+	} else static if (is(typeof(__traits(getMember, T, Member)) == void)) {
+		enum isReadableDataMember = false;
+	} else static if (is(typeof(__traits(getMember, T, Member)) == enum)) {
+		enum isReadableDataMember = true;
+	} else static if (hasUDA!(__traits(getMember, T, Member), IgnoreAttribute)) {
+		enum isReadableDataMember = false;
+	} else static if (isArray!(typeof(__traits(getMember, T, Member))) && !is(typeof(typeof(__traits(getMember, T, Member)).init[0]) == ubyte) && !is(typeof(__traits(getMember, T, Member)) == string)) {
+		enum isReadableDataMember = false;
+	} else static if (isAssociativeArray!(typeof(__traits(getMember, T, Member)))) {
+		enum isReadableDataMember = false;
+	} else static if (isSomeFunction!(typeof(__traits(getMember, T, Member)))  /* && return type is valueType*/ ) {
+		enum isReadableDataMember = true;
+	} else static if (!is(typeof((){ T x = void; __traits(getMember, x, Member) = __traits(getMember, x, Member); }()))) {
+		enum isReadableDataMember = false;
+	} else static if ((__traits(getProtection, __traits(getMember, T, Member)) != "public") && (__traits(getProtection, __traits(getMember, T, Member)) != "export")) {
+		enum isReadableDataMember = false;
+	} else {
+		enum isReadableDataMember = true;
+	}
+}
 
 struct MySQLRawString {
 	@disable this();

@@ -10,7 +10,7 @@ import std.traits;
 
 import mysql.appender;
 import mysql.exception;
-
+import mysql.type;
 
 enum OnDuplicate : size_t {
 	Ignore,
@@ -19,7 +19,6 @@ enum OnDuplicate : size_t {
 	Update,
 	UpdateAll,
 }
-
 
 auto inserter(ConnectionType)(auto ref ConnectionType connection) {
 	return Inserter!ConnectionType(connection);
@@ -119,14 +118,21 @@ struct Inserter(ConnectionType) {
 		app.put(tableName);
 		app.put('(');
 
-		foreach(size_t i, Arg; Args) {
+		foreach (size_t i, Arg; Args) {
 			static if (isSomeString!Arg) {
+				fieldsHash_ ~= hashOf(fieldNames[i]);
+				fieldsNames_ ~= fieldNames[i];
+
 				app.put('`');
 				app.put(fieldNames[i]);
 				app.put('`');
 			} else {
 				auto columns = fieldNames[i];
 				foreach (j, name; columns) {
+
+					fieldsHash_ ~= hashOf(name);
+					fieldsNames_ ~= name;
+
 					app.put('`');
 					app.put(name);
 					app.put('`');
@@ -147,7 +153,82 @@ struct Inserter(ConnectionType) {
 		return this;
 	}
 
-	void row(Values...)(Values values) {
+	void rows(T)(ref const T [] param) if (!isValueType!T) {
+		if (param.length < 1)
+			return;
+
+		foreach (ref p; param)
+			row(p);
+	}
+
+	private auto tryAppendField(string member, string parentMembers = "", T)(ref const T param, ref size_t fieldHash, ref bool fieldFound) {
+		static if (isReadableDataMember!(Unqual!T, member)) {
+			alias memberType = typeof(__traits(getMember, param, member));
+			static if (isValueType!(memberType)) {
+				static if (getUDAs!(__traits(getMember, param, member), NameAttribute).length){
+					enum nameHash = hashOf(parentMembers~getUDAs!(__traits(getMember, param, member), NameAttribute)[0].name);
+				}
+				else {
+					enum nameHash = hashOf(parentMembers~member);
+				}
+				if (nameHash == fieldHash || (parentMembers == "" && getUDAs!(T, UnCamelCaseAttribute).length && hashOf(member.unCamelCase) == fieldHash)) {
+					appendValue(values_, __traits(getMember, param, member));
+					fieldFound = true;
+					return;
+				}
+			} else {
+				foreach (subMember; __traits(allMembers, memberType)) {
+					static if (parentMembers == "") {
+						tryAppendField!(subMember, member~".")(__traits(getMember, param, member), fieldHash, fieldFound);
+					} else {
+						tryAppendField!(subMember, parentMembers~member~".")(__traits(getMember, param, member), fieldHash, fieldFound);
+					}
+
+					if (fieldFound)
+						return;
+				}
+			}
+		}
+	}
+
+	void row (T) (ref const T param) if (!isValueType!T) {
+		scope (failure) reset();
+
+		if (start_.empty)
+			throw new MySQLErrorException("Inserter must be initialized with a call to start()");
+
+		if (!pending_)
+			values_.put(cast(char[])start_);
+
+		values_.put(pending_ ? ",(" : "(");
+		++pending_;
+
+		bool fieldFound;
+		foreach (i, ref fieldHash; fieldsHash_) {
+			fieldFound = false;
+			foreach (member; __traits(allMembers, T)) {
+				 tryAppendField!member(param, fieldHash, fieldFound);
+				 if (fieldFound)
+				 	break;
+			}
+			if (!fieldFound)
+				throw new MySQLErrorException(format("field '%s' was not found in struct => '%s' members", fieldsNames_.ptr[i], typeid(Unqual!T).name));
+
+			if (i != fields_-1)
+				values_.put(',');
+		}
+		values_.put(')');
+
+		if (values_.data.length > (128 << 10)) // todo: make parameter
+			flush();
+
+		++rows_;
+	}
+
+	void row(Values...)(Values values) if(allSatisfy!(isValueType, Values)) {
+
+		scope(failure) reset();
+
 		if (start_.empty)
 			throw new MySQLErrorException("Inserter must be initialized with a call to start()");
 
@@ -184,6 +265,8 @@ struct Inserter(ConnectionType) {
 		++rows_;
 	}
 
+
+
 	@property size_t rows() const {
 		return rows_ != 0;
 	}
@@ -196,6 +279,12 @@ struct Inserter(ConnectionType) {
 		return flushes_;
 	}
 
+	private void reset(){
+		values_.clear;
+		pending_ = 0;
+	}
+
+
 	void flush(string File=__FILE__, size_t Line=__LINE__)() {
 		if (pending_) {
 			if (dupUpdate_.length) {
@@ -204,8 +293,7 @@ struct Inserter(ConnectionType) {
 			}
 
 			auto sql = cast(char[])values_.data();
-			values_.clear;
-			pending_ = 0;
+			reset();
 
 			conn_.execute!(File, Line)(sql);
 			++flushes_;
@@ -222,4 +310,6 @@ private:
 	size_t flushes_;
 	size_t fields_;
 	size_t rows_;
+	string[] fieldsNames_;
+	size_t[] fieldsHash_;
 }

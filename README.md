@@ -24,8 +24,8 @@ void usedb() {
 	// use the default mysql client - uses only prepared statements
 	auto client = new MySQLClient("host=sql.moo.com;user=root;pwd=god;db=mew");
 	auto conn = client.lockConnection();
-	
-	
+
+
 	// use the text protocol instead - instantiate the MySQLClientT template with appropriate arguments
 	alias MySQLTextClient = MySQLClientT!(VibeSocket, ConnectionOptions.TextProtocol | ConnectionOptions.TextProtocolCheckNoArgs);
 	auto textClient = new MySQLTextClient("host=sql.moo.com;user=root;pwd=god;db=mew");
@@ -58,6 +58,47 @@ void usedb() {
 		insert.row(user.name, user.email);
 	insert.flush;
 
+	//struct inserter - insterts struct directly using the field names and UDAs.
+	struct Info{
+		string employee = "employee";
+		int duration_in_months = 12;
+	}
+
+	struct InsuranceInfo {
+		int number = 50;
+		Date started = Date(2015,12,25);
+		@ignore string description = "insurance description";
+		Info info;
+	}
+
+	struct BankInfo {
+		string iban;
+		string name;
+		@as("country") string bankCountry;
+	}
+
+	struct Client {
+		@as("name") string clientName = "default name";
+		@as("email") string emailAddress = "default email";
+		@as("token") string uniuqeToken = "default token";
+		@as("birth_date") Date birthDate = Date(1991, 9, 9);
+		@ignore string moreInfoString;
+		InsuranceInfo insurance;
+		BankInfo bank;
+	}
+
+	Client client;
+	auto inserter = inserter(conn, "client", "name", "email", "birth_date", "token", "bank.country", "bank.iban", "bank.name" ,
+	  "insurance.number", "insurance.started", "insurance.info.employee", "insurance.info.duration_in_months");
+	inserter.row(client);
+
+	auto dbClient = conn.fetchOne!Client("select * from client limit 1");
+
+	assert(client.serialize == dbClient.serialize)
+
+	//batch insert struct array
+	Client[] clients = [Client(), Client(), Client()];
+	insert.rows(clients);
 
 	// re-usable prepared statements
 	auto upd = conn.prepare("update users set sequence = ?, login_at = ?, secret = ? where id = ?");
@@ -91,14 +132,14 @@ void usedb() {
 		// auto user = row.toStruct!(User, Strict.no); // missing or null will just be ignored
 		writeln(user);
 	});
-	
+
 
 	// structured row with nested structs
 	struct GeoRef {
 		double lat;
 		double lng;
 	}
-	
+
 	struct Place {
 		string name;
 		GeoRef location;
@@ -109,7 +150,7 @@ void usedb() {
 		writeln(place.location);
 	});
 
-	
+
 	// structured row annotations
 	struct PlaceFull {
 		uint id;
