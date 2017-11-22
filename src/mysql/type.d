@@ -179,6 +179,23 @@ struct MySQLValue {
 		this = value;
 	}
 
+	this(T)(T value) if (std.traits.isFloatingPoint!T) {
+		alias UT = Unqual!T;
+
+		sign_ = 0x80;
+		static if (is(UT == float)) {
+			type_ = ColumnTypes.MYSQL_TYPE_FLOAT;
+			buffer_[0..T.sizeof] = (cast(ubyte*)&value)[0..T.sizeof];
+		} else static if (is(UT == double)) {
+			type_ = ColumnTypes.MYSQL_TYPE_DOUBLE;
+			buffer_[0..T.sizeof] = (cast(ubyte*)&value)[0..T.sizeof];
+		} else {
+			type_ = ColumnTypes.MYSQL_TYPE_DOUBLE;
+			auto data = cast(double)value;
+			buffer_[0..typeof(data).sizeof] = (cast(ubyte*)&data)[0..typeof(data).sizeof];
+		}
+	}
+
 	this(T)(T value) if (isIntegral!T || isBoolean!T) {
 		alias UT = Unqual!T;
 
@@ -1118,6 +1135,20 @@ void putValueType(T)(ref OutputPacket packet, T value) if (isIntegral!T || isBoo
 	}
 }
 
+void putValueType(T)(ref OutputPacket packet, T value) if (isFloatingPoint!T) {
+	alias UT = Unqual!T;
+
+	enum ubyte sign = 0x00;
+
+	static if (is(UT == float)) {
+		packet.put!ubyte(ColumnTypes.MYSQL_TYPE_FLOAT);
+		packet.put!ubyte(sign);
+	} else {
+		packet.put!ubyte(ColumnTypes.MYSQL_TYPE_DOUBLE);
+		packet.put!ubyte(sign);
+	}
+}
+
 void putValueType(T)(ref OutputPacket packet, T value) if (is(Unqual!T == typeof(null))) {
 	packet.put!ubyte(ColumnTypes.MYSQL_TYPE_NULL);
 	packet.put!ubyte(0x00);
@@ -1134,6 +1165,16 @@ void putValue(T)(ref OutputPacket packet, T value) if (isIntegral!T || isBoolean
 		packet.put!ushort(value);
 	} else {
 		packet.put!ubyte(value);
+	}
+}
+
+void putValue(T)(ref OutputPacket packet, T value) if (isFloatingPoint!T) {
+	alias UT = Unqual!T;
+
+	static if (is(UT == float)) {
+		packet.put!float(value);
+	} else {
+		packet.put!double(cast(double)value);
 	}
 }
 
@@ -1196,7 +1237,7 @@ void putValue(T)(ref OutputPacket packet, T value) if (is(Unqual!T == MySQLValue
 		packet.put!double(*cast(double*)value.buffer_.ptr);
 		break;
 	case MYSQL_TYPE_FLOAT:
-		packet.put!double(*cast(float*)value.buffer_.ptr);
+		packet.put!float(*cast(float*)value.buffer_.ptr);
 		break;
 	case MYSQL_TYPE_SET:
 	case MYSQL_TYPE_ENUM:
