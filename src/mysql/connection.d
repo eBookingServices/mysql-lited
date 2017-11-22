@@ -33,6 +33,10 @@ struct ConnectionStatus {
 
 struct ConnectionSettings {
 	this(const(char)[] connectionString) {
+		parse(connectionString);
+	}
+
+	void parse(const(char)[] connectionString) {
 		auto remaining = connectionString;
 
 		auto indexValue = remaining.indexOf("=");
