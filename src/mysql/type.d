@@ -182,7 +182,7 @@ struct MySQLValue {
 	this(T)(T value) if (std.traits.isFloatingPoint!T) {
 		alias UT = Unqual!T;
 
-		sign_ = 0x80;
+		sign_ = 0x00;
 		static if (is(UT == float)) {
 			type_ = ColumnTypes.MYSQL_TYPE_FLOAT;
 			buffer_[0..T.sizeof] = (cast(ubyte*)&value)[0..T.sizeof];
