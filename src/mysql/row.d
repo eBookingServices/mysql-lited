@@ -55,6 +55,14 @@ struct MySQLRow {
 		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set", File, Line);
 	}
 
+	auto opSlice() const {
+		return values_;
+	}
+
+	auto opSlice(size_t i, size_t j) const {
+		return values_[i..j];
+	}
+
 	ref auto opIndex(string File=__FILE__, size_t Line=__LINE__)(string key) const {
 		if (auto index = find_(key.hashOf, key))
 			return values_[index - 1];

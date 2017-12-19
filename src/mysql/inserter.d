@@ -153,7 +153,7 @@ struct Inserter(ConnectionType) {
 		return this;
 	}
 
-	void rows(T)(ref const T [] param) if (!isValueType!T) {
+	void rows(T)(ref const T[] param) if (!isValueType!T) {
 		if (param.length < 1)
 			return;
 
