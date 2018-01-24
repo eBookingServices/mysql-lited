@@ -33,12 +33,7 @@ final class MySQLClientT(SocketType, ConnectionOptions Options = ConnectionOptio
 
 	auto lockConnection() {
 		auto connection = connections_.lockConnection();
-		connection.onStatus = null;
-
-		if (connection.inTransaction)
-			connection.rollback;
-		if (connection.settings.db.length && (connection.settings.db != connection.schema))
-			connection.use(connection.settings.db);
+		connection.reuse();
 		return connection;
 	}
 

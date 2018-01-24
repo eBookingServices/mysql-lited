@@ -416,7 +416,7 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		return onStatus_;
 	}
 
-	alias OnDisconnectCallback = scope void delegate();
+	alias OnDisconnectCallback = scope void delegate(ConnectionStatus status);
 	@property void onDisconnect(OnDisconnectCallback callback) {
 		onDisconnect_ = callback;
 	}
@@ -461,6 +461,18 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		socket_.close();
 	}
 
+	void reuse() {
+		onDisconnect_ = null;
+		onStatus_ = null;
+
+		ensureConnected();
+
+		if (inTransaction)
+			rollback;
+		if (settings_.db.length && (settings_.db != schema_))
+			use(settings_.db);
+	}
+
 	@property void trace(bool enable) {
 		trace_ = enable;
 	}
@@ -473,7 +485,7 @@ private:
 	void disconnect_() {
 		disconnect();
 		if (onDisconnect_ && error)
-			onDisconnect_();
+			onDisconnect_(status_);
 	}
 
 	void query(string File, size_t Line, Args...)(const(char)[] sql, Args args) {
@@ -525,8 +537,7 @@ private:
 	}
 
 	void send(Commands cmd, ubyte* data = null, size_t length = 0) {
-		if(!socket_.connected)
-			connect();
+		ensureConnected();
 
 		seq_ = 0;
 		auto header = OutputPacket(&out_);
@@ -540,7 +551,7 @@ private:
 	}
 
 	void ensureConnected() {
-		if(!socket_.connected)
+		if (!socket_.connected)
 			connect();
 	}
 
