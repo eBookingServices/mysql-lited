@@ -19,10 +19,10 @@ enum Strict {
 
 
 private uint hashOf(const(char)[] x) {
-	uint hash = 5381;
+	uint hash = 2166136261u;
 	foreach(i; 0..x.length)
-		hash = (hash * 33) ^ cast(uint)(std.ascii.toLower(x.ptr[i]));
-	return cast(uint)hash;
+		hash = (hash ^ cast(uint)(std.ascii.toLower(x.ptr[i]))) * 16777619u;
+	return hash;
 }
 
 

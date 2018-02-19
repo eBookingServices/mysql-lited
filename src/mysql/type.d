@@ -7,6 +7,7 @@ import std.conv : parse, to;
 import std.datetime;
 import std.format: format, formattedWrite;
 import std.traits;
+import std.typecons;
 
 import mysql.protocol;
 import mysql.packet;
@@ -42,8 +43,9 @@ struct TableNameAttribute {const(char)[] name;}
 	return UnCamelCaseAttribute();
 }
 
+
 template isValueType(T) {
-	static if (is(Unqual!T == struct) && !is(Unqual!T == MySQLValue) &&!is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration)) {
+	static if (is(Unqual!T == struct) && !is(Unqual!T == MySQLValue) && !is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration)) {
 		enum isValueType = false;
 	} else {
 		enum isValueType = true;
@@ -1149,11 +1151,6 @@ void putValueType(T)(ref OutputPacket packet, T value) if (isFloatingPoint!T) {
 	}
 }
 
-void putValueType(T)(ref OutputPacket packet, T value) if (is(Unqual!T == typeof(null))) {
-	packet.put!ubyte(ColumnTypes.MYSQL_TYPE_NULL);
-	packet.put!ubyte(0x00);
-}
-
 void putValue(T)(ref OutputPacket packet, T value) if (isIntegral!T || isBoolean!T) {
 	alias UT = Unqual!T;
 
@@ -1268,5 +1265,29 @@ void putValue(T)(ref OutputPacket packet, T value) if (is(Unqual!T == MySQLValue
 	case MYSQL_TYPE_TIMESTAMP2:
 		packet.putMySQLDateTime(*cast(MySQLDateTime*)value.buffer_.ptr);
 		break;
+	}
+}
+
+void putValueType(T)(ref OutputPacket packet, T value) if (is(Unqual!T == typeof(null))) {
+	packet.put!ubyte(ColumnTypes.MYSQL_TYPE_NULL);
+	packet.put!ubyte(0x00);
+}
+
+void putValue(T)(ref OutputPacket packet, T value) if (is(Unqual!T == typeof(null))) {
+}
+
+void putValueType(T)(ref OutputPacket packet, T value) if (isInstanceOf!(Nullable, T) || isInstanceOf!(NullableRef, T)) {
+	if (value.isNull) {
+		putValueType(packet, null);
+	} else {
+		putValueType(packet, value.get);
+	}
+}
+
+void putValue(T)(ref OutputPacket packet, T value) if (isInstanceOf!(Nullable, T) || isInstanceOf!(NullableRef, T)) {
+	if (value.isNull) {
+		putValue(packet, null);
+	} else {
+		putValue(packet, value.get);
 	}
 }

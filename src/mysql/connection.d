@@ -375,12 +375,10 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 			}
 
 			foreach (arg; args[0..argCount]) {
-				static if (!is(typeof(arg) == typeof(null))) {
-					static if (is(typeof(arg) == enum)) {
-						putValue(packet, cast(OriginalType!(Unqual!(typeof(arg))))arg);
-					} else {
-						putValue(packet, arg);
-					}
+				static if (is(typeof(arg) == enum)) {
+					putValue(packet, cast(OriginalType!(Unqual!(typeof(arg))))arg);
+				} else {
+					putValue(packet, arg);
 				}
 			}
 		}

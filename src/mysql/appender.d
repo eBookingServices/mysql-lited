@@ -5,6 +5,7 @@ import std.conv;
 import std.datetime;
 import std.format;
 import std.traits;
+import std.typecons;
 
 import mysql.protocol;
 import mysql.type;
@@ -20,6 +21,14 @@ void appendValues(Appender, T)(ref Appender appender, T values) if (isArray!T &&
 
 void appendValue(Appender, T)(ref Appender appender, T value) if (is(Unqual!T == typeof(null))) {
 	appender.put("null");
+}
+
+void appendValue(Appender, T)(ref Appender appender, T value) if (isInstanceOf!(Nullable, T) || isInstanceOf!(NullableRef, T)) {
+	if (value.isNull) {
+		appendValue(appender, null);
+	} else {
+		appendValue(appender, value.get);
+	}
 }
 
 void appendValue(Appender, T)(ref Appender appender, T value) if (isScalarType!T) {
