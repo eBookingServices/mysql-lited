@@ -126,17 +126,15 @@ struct MySQLRow {
 	void toStruct(T, Strict strict = Strict.yesIgnoreNull, string File=__FILE__, size_t Line=__LINE__)(ref T x) if(is(Unqual!T == struct)) {
 		static if (isTuple!(Unqual!T)) {
 			foreach(i, ref f; x.field) {
-				if (i < length) {
+				if (i < values_.length) {
 					static if (strict != Strict.yes) {
-						if (this[i].isNull)
-							continue;
+						if (!this[i].isNull)
+							f = this[i].get!(Unqual!(typeof(f)));
+					} else {
+						f = this[i].get!(Unqual!(typeof(f)));
 					}
-
-					f = this[i].get!(Unqual!(typeof(f)));
-					continue;
 				}
-
-				static if ((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) {
+				else static if ((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) {
 					throw new MySQLErrorException("Column " ~ i ~ " is out of range for this result set", File, Line);
 				}
 			}

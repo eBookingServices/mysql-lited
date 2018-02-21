@@ -506,7 +506,7 @@ private:
 		version(development) {
 			import std.stdio;
 			if (trace_)
-				stderr.writeln(querySQL);
+				stderr.writefln("%s:%s %s", File, Line, querySQL);
 		}
 
 		send(Commands.COM_QUERY, querySQL);
