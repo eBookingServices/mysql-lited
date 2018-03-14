@@ -817,11 +817,9 @@ private:
 
 			if (!packet.empty && (caps_ & CapabilityFlags.CLIENT_SESSION_TRACK)) {
 				info(packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc()));
-				packet.skip(1);
 
 				if (status_.flags & StatusFlags.SERVER_SESSION_STATE_CHANGED) {
 					packet.skip(cast(size_t)packet.eatLenEnc());
-					packet.skip(1);
 				}
 			}
 
