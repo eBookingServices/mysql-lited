@@ -7,12 +7,14 @@ import std.conv : to;
 import std.regex : ctRegex, matchFirst;
 import std.string;
 import std.traits;
+import std.uni : sicmp;
 import std.utf : decode, UseReplacementDchar;
 
 import mysql.appender;
 public import mysql.exception;
 import mysql.packet;
 import mysql.protocol;
+import mysql.ssl;
 public import mysql.type;
 
 
@@ -49,23 +51,90 @@ struct ConnectionSettings {
 			auto value = strip(remaining[indexValue+1..indexValueEnd]);
 
 			switch (name) {
-				case "host":
-					host = value;
+			case "host":
+				host = value;
+				break;
+			case "user":
+				user = value;
+				break;
+			case "pwd":
+				pwd = value;
+				break;
+			case "db":
+				db = value;
+				break;
+			case "port":
+				port = to!ushort(value);
+				break;
+			case "ssl":
+				switch (value) {
+				case "0":
+				case "no":
+				case "false":
 					break;
-				case "user":
-					user = value;
-					break;
-				case "pwd":
-					pwd = value;
-					break;
-				case "db":
-					db = value;
-					break;
-				case "port":
-					port = to!ushort(value);
+				case "require":
+				case "required":
+					ssl.enforce = true;
+					goto case "yes";
+				case "1":
+				case "yes":
+				case "true":
+					caps |= CapabilityFlags.CLIENT_SSL;
 					break;
 				default:
-					throw new MySQLException("Bad connection string: " ~ cast(string)connectionString);
+					throw new MySQLException("Bad value for 'ssl' on connection string: " ~ cast(string)value);
+				}
+				break;
+			case "ssl_rootcert":
+				ssl.rootCertFile = value;
+				break;
+			case "ssl_hostname":
+				ssl.hostName = value;
+				break;
+			case "ssl_ciphers":
+				ssl.ciphers = value;
+				break;
+			case "ssl_version":
+				switch (value) with (SSLConfig.Version) {
+				case "any":
+					ssl.sslVersion = any;
+					break;
+				case "ssl3":
+					ssl.sslVersion = ssl3;
+					break;
+				case "tls1":
+					ssl.sslVersion = tls1;
+					break;
+				case "tls1_1":
+					ssl.sslVersion = tls1_1;
+					break;
+				case "tls1_2":
+					ssl.sslVersion = tls1_2;
+					break;
+				case "dtls1":
+					ssl.sslVersion = dtls1;
+					break;
+				default:
+					throw new MySQLException("Bad value for 'ssl_version' on connection string: " ~ cast(string)value);
+				}
+				break;
+			case "ssl_validate":
+				switch (value) with (SSLConfig.Validate) {
+				case "basic":
+					ssl.validate = basic;
+					break;
+				case "trust":
+					ssl.validate = trust;
+					break;
+				case "identity":
+					ssl.validate = identity;
+					break;
+				default:
+					throw new MySQLException("Bad value for 'ssl_validate' on connection string: " ~ cast(string)value);
+				}
+				break;
+			default:
+				throw new MySQLException("Bad connection string: " ~ cast(string)connectionString);
 			}
 
 			if (indexValueEnd == remaining.length)
@@ -85,6 +154,8 @@ struct ConnectionSettings {
 	const(char)[] pwd;
 	const(char)[] db;
 	ushort port = 3306;
+
+	SSLConfig ssl;
 }
 
 
@@ -124,7 +195,7 @@ private struct ServerInfo {
 
 
 @property string placeholders(T)(T x, bool parens = true) if (is(typeof(() { auto y = x.length; }))) {
-	return x.length.placeholders;
+	return x.length.placeholders(parens);
 }
 
 
@@ -231,7 +302,6 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		}
 
 		if (columns) {
-			MySQLColumn def;
 			foreach (i; 0..columns)
 				skipColumnDef(retrieve(), Commands.COM_STMT_PREPARE);
 
@@ -325,8 +395,8 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		static if (argCount) {
 			enum NullsCapacity = 128; // must be power of 2
 			ubyte[NullsCapacity >> 3] nulls;
-			size_t bitsOut = 0;
-			size_t indexArg = 0;
+			size_t bitsOut;
+			size_t indexArg;
 			foreach(i, arg; args[0..argCount]) {
 				const auto index = (indexArg >> 3) & (NullsCapacity - 1);
 				const auto bit = indexArg & 7;
@@ -504,7 +574,7 @@ private:
 		}
 
 		version(development) {
-			import std.stdio;
+			import std.stdio : stderr, writefln;
 			if (trace_)
 				stderr.writefln("%s:%s %s", File, Line, querySQL);
 		}
@@ -646,26 +716,29 @@ private:
 			packet.expect!ubyte(0);
 		}
 
+		caps_ = cast(CapabilityFlags)(settings_.caps & server_.caps);
+
+		if (((settings_.caps & CapabilityFlags.CLIENT_SSL) != 0) || settings_.ssl.enforce) {
+			if ((caps_ & CapabilityFlags.CLIENT_SSL) != 0) {
+				startSSL();
+			} else if (settings_.ssl.enforce) {
+				throw new MySQLProtocolException("Server doesn't support SSL");
+			}
+		}
+
 		ubyte[20] token;
 		{
-			import std.digest.sha;
+			import std.digest.sha : sha1Of;
 
 			auto pass = sha1Of(cast(const(ubyte)[])settings_.pwd);
-			token = sha1Of(pass);
-
-			SHA1 sha1;
-			sha1.start();
-			sha1.put(auth[0..authLength]);
-			sha1.put(token);
-			token = sha1.finish();
+			token = sha1Of(auth[0..authLength], sha1Of(pass));
 
 			foreach (i; 0..20)
 				token[i] = token[i] ^ pass[i];
 		}
 
-		caps_ = cast(CapabilityFlags)(settings_.caps & server_.caps);
-
 		auto reply = OutputPacket(&out_);
+
 		reply.reserve(64 + settings_.user.length + settings_.pwd.length + settings_.db.length);
 
 		reply.put!uint(caps_);
@@ -708,6 +781,26 @@ private:
 
 		eatStatus!(__FILE__, __LINE__)(retrieve());
 	}
+
+
+	void startSSL() {
+		auto request = OutputPacket(&out_);
+
+		request.reserve(64);
+
+		request.put!uint(caps_);
+		request.put!uint(1);
+		request.put!ubyte(45);
+		request.fill(0, 23);
+
+		request.finalize(seq_);
+		++seq_;
+
+		socket_.write(request.get());
+
+		socket_.startSSL(settings_.host, settings_.ssl);
+	}
+
 
 	void eatStatus(string File, size_t Line)(InputPacket packet, bool smallError = false) {
 		auto id = packet.eat!ubyte;
@@ -839,7 +932,7 @@ private:
 			columnDef(retrieve(), cmd, defs[i]);
 	}
 
-	bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 1) && is(ParameterTypeTuple!(RowHandler)[0] == MySQLRow)) {
+	bool callHandler(RowHandler)(RowHandler handler, size_t, MySQLHeader, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 1) && is(ParameterTypeTuple!(RowHandler)[0] == MySQLRow)) {
 		static if (is(ReturnType!(RowHandler) == void)) {
 			handler(row);
 			return true;
@@ -848,7 +941,7 @@ private:
 		}
 	}
 
-	bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 2) && isNumeric!(ParameterTypeTuple!(RowHandler)[0]) && is(ParameterTypeTuple!(RowHandler)[1] == MySQLRow)) {
+	bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 2) && isNumeric!(ParameterTypeTuple!(RowHandler)[0]) && is(ParameterTypeTuple!(RowHandler)[1] == MySQLRow)) {
 		static if (is(ReturnType!(RowHandler) == void)) {
 			handler(cast(ParameterTypeTuple!(RowHandler)[0])i, row);
 			return true;
@@ -857,7 +950,7 @@ private:
 		}
 	}
 
-	bool callHandler(RowHandler)(RowHandler handler, size_t i, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 2) && is(ParameterTypeTuple!(RowHandler)[0] == MySQLHeader) && is(ParameterTypeTuple!(RowHandler)[1] == MySQLRow)) {
+	bool callHandler(RowHandler)(RowHandler handler, size_t, MySQLHeader header, MySQLRow row) if ((ParameterTypeTuple!(RowHandler).length == 2) && is(ParameterTypeTuple!(RowHandler)[0] == MySQLHeader) && is(ParameterTypeTuple!(RowHandler)[1] == MySQLRow)) {
 		static if (is(ReturnType!(RowHandler) == void)) {
 			handler(header, row);
 			return true;
@@ -875,7 +968,7 @@ private:
 		}
 	}
 
-	void resultSetRow(InputPacket packet, Commands cmd, MySQLHeader header, ref MySQLRow row) {
+	void resultSetRow(InputPacket packet, MySQLHeader header, ref MySQLRow row) {
 		assert(row.columns.length == header.length);
 
 		packet.expect!ubyte(0);
@@ -905,7 +998,7 @@ private:
 		if (status.peek!ubyte == StatusPackets.ERR_Packet)
 			eatStatus!(File, Line)(status);
 
-		size_t index = 0;
+		size_t index;
 		auto statusFlags = eatEOF(status);
 		if (statusFlags & StatusFlags.SERVER_STATUS_CURSOR_EXISTS) {
 			uint[2] data = [ stmt, 4096 ]; // todo: make setting - rows per fetch
@@ -923,7 +1016,7 @@ private:
 						break;
 					}
 
-					resultSetRow(row, Commands.COM_STMT_FETCH, header_, row_);
+					resultSetRow(row, header_, row_);
 					if (!callHandler(handler, index++, header_, row_)) {
 						discardUntilEOF(retrieve());
 						statusFlags = 0;
@@ -940,7 +1033,7 @@ private:
 					break;
 				}
 
-				resultSetRow(row, cmd, header_, row_);
+				resultSetRow(row, header_, row_);
 				if (!callHandler(handler, index++, header_, row_)) {
 					discardUntilEOF(retrieve());
 					break;
@@ -949,7 +1042,7 @@ private:
 		}
 	}
 
-	void resultSetRowText(InputPacket packet, Commands cmd, MySQLHeader header, ref MySQLRow row) {
+	void resultSetRowText(InputPacket packet, MySQLHeader header, ref MySQLRow row) {
 		assert(row.columns.length == header.length);
 
 		foreach(i, ref column; header) {
@@ -973,7 +1066,7 @@ private:
 
 		eatEOF(retrieve());
 
-		size_t index = 0;
+		size_t index;
 		while (true) {
 			auto row = retrieve();
 			if (row.peek!ubyte == StatusPackets.EOF_Packet) {
@@ -984,7 +1077,7 @@ private:
 				break;
 			}
 
-			resultSetRowText(row, cmd, header_, row_);
+			resultSetRowText(row, header_, row_);
 			if (!callHandler(handler, index++, header_, row_)) {
 				discardUntilEOF(retrieve());
 				break;
