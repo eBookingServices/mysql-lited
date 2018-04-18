@@ -82,7 +82,7 @@ struct ConnectionSettings {
 					caps |= CapabilityFlags.CLIENT_SSL;
 					break;
 				default:
-					throw new MySQLException("Bad value for 'ssl' on connection string: " ~ cast(string)value);
+					throw new MySQLException(format("Bad value for 'ssl' on connection string: %s", value));
 				}
 				break;
 			case "ssl_rootcert":
@@ -115,7 +115,7 @@ struct ConnectionSettings {
 					ssl.sslVersion = dtls1;
 					break;
 				default:
-					throw new MySQLException("Bad value for 'ssl_version' on connection string: " ~ cast(string)value);
+					throw new MySQLException(format("Bad value for 'ssl_version' on connection string: %s", value));
 				}
 				break;
 			case "ssl_validate":
@@ -130,11 +130,11 @@ struct ConnectionSettings {
 					ssl.validate = identity;
 					break;
 				default:
-					throw new MySQLException("Bad value for 'ssl_validate' on connection string: " ~ cast(string)value);
+					throw new MySQLException(format("Bad value for 'ssl_validate' on connection string: %s", value));
 				}
 				break;
 			default:
-				throw new MySQLException("Bad connection string: " ~ cast(string)connectionString);
+				throw new MySQLException(format("Bad connection string: %s", connectionString));
 			}
 
 			if (indexValueEnd == remaining.length)
@@ -144,7 +144,7 @@ struct ConnectionSettings {
 			indexValue = remaining.indexOf("=");
 		}
 
-		throw new MySQLException("Bad connection string: " ~ cast(string)connectionString);
+		throw new MySQLException(format("Bad connection string: %s", connectionString));
 	}
 
 	CapabilityFlags caps = DefaultClientCaps;
@@ -628,7 +628,7 @@ private:
 		switch (id) {
 		case StatusPackets.ERR_Packet:
 		case StatusPackets.OK_Packet:
-			return 1;
+			return true;
 		default:
 			return false;
 		}
@@ -675,7 +675,7 @@ private:
 		check!(__FILE__, __LINE__)(packet, true);
 
 		server_.protocol = packet.eat!ubyte;
-		server_.versionString = packet.eat!(const(char)[])(packet.countUntil(0, true));
+		server_.versionString = packet.eat!(const(char)[])(packet.countUntil(0, true)).dup;
 		packet.skip(1);
 
 		server_.connection = packet.eat!uint;
@@ -870,13 +870,13 @@ private:
 			switch(status_.error) {
 			case ErrorCodes.ER_DUP_ENTRY_WITH_KEY_NAME:
 			case ErrorCodes.ER_DUP_ENTRY:
-				throw new MySQLDuplicateEntryException(cast(string)info_, File, Line);
+				throw new MySQLDuplicateEntryException(info_.idup, File, Line);
 			default:
 				version(development) {
 					// On dev show the query together with the error message
-					throw new MySQLErrorException(cast(string)info_ ~ " - " ~ cast(string)sql_.data, File, Line);
+					throw new MySQLErrorException(format("%s - %s", info_, sql_.data), File, Line);
 				} else {
-					throw new MySQLErrorException(cast(string)info_, File, Line);
+					throw new MySQLErrorException(info_.idup, File, Line);
 				}
 			}
 		default:

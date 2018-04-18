@@ -221,14 +221,14 @@ struct MySQLValue {
 		(*cast(MySQLDateTime*)buffer_) = MySQLDateTime.from(value);
 	}
 
-	this(T)(T value) if (is(Unqual!T == Duration)) {
+	this(T)(T value) if (is(Unqual!T == Duration) || is(Unqual!T == TimeOfDay)) {
 		type_ = ColumnTypes.MYSQL_TYPE_TIME;
 		sign_ = 0x00;
 		(*cast(MySQLTime*)buffer_) = MySQLTime.from(value);
 	}
 
 	this(T)(T value) if (isSomeString!T) {
-		static assert(typeof(T.init[0]).sizeof == 1, "Unsupported string type: " ~ T);
+		static assert(typeof(T.init[0]).sizeof == 1, format("Unsupported string type: %s", T.stringof));
 
 		type_ = ColumnTypes.MYSQL_TYPE_STRING;
 		sign_ = 0x80;
@@ -291,7 +291,7 @@ struct MySQLValue {
 			break;
 		case MYSQL_TYPE_TIME:
 		case MYSQL_TYPE_TIME2:
-			formattedWrite(&app, "%s", (*cast(MySQLTime*)buffer_.ptr).toDuration());
+			formattedWrite(&app, "%s", (*cast(MySQLTime*)buffer_.ptr).to!Duration());
 			break;
 		case MYSQL_TYPE_DATE:
 		case MYSQL_TYPE_NEWDATE:
@@ -311,19 +311,19 @@ struct MySQLValue {
 	}
 
 	bool opEquals(MySQLValue other) const {
-		if (isString == other.isString) {
+		if (isString && other.isString) {
 			return peek!string == other.peek!string;
-		} else if (isScalar == other.isScalar) {
+		} else if (isScalar && other.isScalar) {
 			if (isFloatingPoint || other.isFloatingPoint)
 				return get!double == other.get!double;
 			if (isSigned || other.isSigned)
 				return get!long == other.get!long;
 			return get!ulong == other.get!ulong;
-		} else if (isTime == other.isTime) {
+		} else if (isTime && other.isTime) {
 			return get!Duration == other.get!Duration;
-		} else if (isTimestamp == other.isTimestamp) {
+		} else if (isTimestamp && other.isTimestamp) {
 			return get!SysTime == other.get!SysTime;
-		} else if (isNull == other.isNull) {
+		} else if (isNull && other.isNull) {
 			return true;
 		}
 		return false;
@@ -350,11 +350,11 @@ struct MySQLValue {
 		case MYSQL_TYPE_DOUBLE:
 			return cast(T)(*cast(double*)buffer_.ptr);
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to scalar", name_, columnTypeName(type_)), File, Line);
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to %s", name_, columnTypeName(type_), T.stringof), File, Line);
 		}
 	}
 
-	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == SysTime) || is(Unqual!T == DateTime) ||  is(Unqual!T == Date) || is(Unqual!T == TimeOfDay)) {
+	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == SysTime) || is(Unqual!T == DateTime) || is(Unqual!T == Date)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_DATE:
 		case MYSQL_TYPE_NEWDATE:
@@ -364,22 +364,39 @@ struct MySQLValue {
 		case MYSQL_TYPE_TIMESTAMP2:
 			return (*cast(MySQLDateTime*)buffer_.ptr).to!T;
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to timestamp", name_, columnTypeName(type_)), File, Line);
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to %s", name_, columnTypeName(type_), T.stringof), File, Line);
 		}
 	}
 
-	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == enum)) {
-		return cast(T)get!(OriginalType!T, File, Line);
+	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == TimeOfDay)) {
+		switch(type_) with (ColumnTypes) {
+		case MYSQL_TYPE_DATE:
+		case MYSQL_TYPE_NEWDATE:
+		case MYSQL_TYPE_DATETIME:
+		case MYSQL_TYPE_DATETIME2:
+		case MYSQL_TYPE_TIMESTAMP:
+		case MYSQL_TYPE_TIMESTAMP2:
+			return (*cast(MySQLDateTime*)buffer_.ptr).to!T;
+		case MYSQL_TYPE_TIME:
+		case MYSQL_TYPE_TIME2:
+			return (*cast(MySQLTime*)buffer_.ptr).to!T;
+		default:
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to %s", name_, columnTypeName(type_), T.stringof), File, Line);
+		}
 	}
 
 	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == Duration)) {
 		switch(type_) with (ColumnTypes) {
 		case MYSQL_TYPE_TIME:
 		case MYSQL_TYPE_TIME2:
-			return (*cast(MySQLTime*)buffer_.ptr).toDuration;
+			return (*cast(MySQLTime*)buffer_.ptr).to!T;
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to duration", name_, columnTypeName(type_)), File, Line);
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to %s", name_, columnTypeName(type_), T.stringof), File, Line);
 		}
+	}
+
+	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == enum)) {
+		return cast(T)get!(OriginalType!T, File, Line);
 	}
 
 	T get(T, string File=__FILE__, size_t Line=__LINE__)() const if (isArray!T && !is(T == enum)) {
@@ -401,7 +418,7 @@ struct MySQLValue {
 		case MYSQL_TYPE_GEOMETRY:
 			return (*cast(T*)buffer_.ptr).dup;
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to array", name_, columnTypeName(type_)), File, Line);
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to %s", name_, columnTypeName(type_), T.stringof), File, Line);
 		}
 	}
 
@@ -413,7 +430,7 @@ struct MySQLValue {
 		return get!(T, File, Line);
 	}
 
-	T peek(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == SysTime) || is(Unqual!T == DateTime) ||  is(Unqual!T == Date) || is(Unqual!T == TimeOfDay)) {
+	T peek(T, string File=__FILE__, size_t Line=__LINE__)() const if (is(Unqual!T == SysTime) || is(Unqual!T == DateTime) || is(Unqual!T == Date) || is(Unqual!T == TimeOfDay)) {
 		return get!(T, File, Line);
 	}
 
@@ -440,7 +457,7 @@ struct MySQLValue {
 		case MYSQL_TYPE_GEOMETRY:
 			return (*cast(T*)buffer_.ptr);
 		default:
-			throw new MySQLErrorException(format("Cannot convert '%s' from %s to array", name_, columnTypeName(type_)), File, Line);
+			throw new MySQLErrorException(format("Cannot convert '%s' from %s to %s", name_, columnTypeName(type_), T.stringof), File, Line);
 		}
 	}
 
@@ -700,19 +717,31 @@ struct MySQLTime {
 	ubyte secs;
 	uint usecs;
 
-	Duration toDuration() const {
+	auto to(T)() const if (is(Unqual!T == Duration)) {
 		auto total = days * 86400_000_000L +
 			hours * 3600_000_000L +
 			mins * 60_000_000L +
 			secs * 1_000_000L +
 			usecs;
-		return dur!"usecs"(negative ? -total : total);
+		return cast(T)dur!"usecs"(negative ? -total : total);
+	}
+
+	auto to(T)() const if (is(Unqual!T == TimeOfDay)) {
+		return cast(T)TimeOfDay(hours, mins, secs);
 	}
 
 	static MySQLTime from(Duration duration) {
 		MySQLTime time;
 		duration.abs.split!("days", "hours", "minutes", "seconds", "usecs")(time.days, time.hours, time.mins, time.secs, time.usecs);
 		time.negative = duration.isNegative ? 1 : 0;
+		return time;
+	}
+
+	static MySQLTime from(TimeOfDay tod) {
+		MySQLTime time;
+		time.hours = tod.hour;
+		time.mins = tod.minute;
+		time.secs = tod.second;
 		return time;
 	}
 }
@@ -774,23 +803,23 @@ struct MySQLDateTime {
 		return month != 0;
 	}
 
-	T to(T)() if (is(T == SysTime)) {
+	T to(T)() const if (is(Unqual!T == SysTime)) {
 		assert(valid());
-		return SysTime(DateTime(year, month, day, hour, min, sec), usec.dur!"usecs", UTC());
+		return cast(T)SysTime(DateTime(year, month, day, hour, min, sec), usec.dur!"usecs", UTC());
 	}
 
-	T to(T)() if (is(T == DateTime)) {
+	T to(T)() const if (is(Unqual!T == DateTime)) {
 		assert(valid());
-		return DateTime(year, month, day, hour, min, sec);
+		return cast(T)DateTime(year, month, day, hour, min, sec);
 	}
 
-	T to(T)() if (is(T == Date)) {
+	T to(T)() const if (is(T == Date)) {
 		assert(valid());
-		return Date(year, month, day);
+		return cast(T)Date(year, month, day);
 	}
 
-	T to(T)() if (is(T == TimeOfDay)) {
-		return TimeOfDay(hour, min, sec);
+	T to(T)() const if (is(Unqual!T == TimeOfDay)) {
+		return cast(T)TimeOfDay(hour, min, sec);
 	}
 
 	static MySQLDateTime from(SysTime sysTime) {
@@ -903,17 +932,17 @@ private void skip(ref const(char)[] x, char ch) {
 auto parseMySQLTime(const(char)[] x) {
 	MySQLTime time;
 
-    auto hours = x.parse!int;
-    if (hours < 0) {
-        time.negative = 1;
-        hours = -hours;
-    }
+	auto hours = x.parse!int;
+	if (hours < 0) {
+		time.negative = 1;
+		hours = -hours;
+	}
 	time.days = hours / 24;
 	time.hours = cast(ubyte)(hours % 24);
-    x.skip(':');
-    time.mins = x.parse!ubyte;
-    x.skip(':');
-    time.secs = x.parse!ubyte;
+	x.skip(':');
+	time.mins = x.parse!ubyte;
+	x.skip(':');
+	time.secs = x.parse!ubyte;
 	if (x.length) {
 		x.skip('.');
 		time.usecs = x.parse!uint;
@@ -935,10 +964,10 @@ auto parseMySQLDateTime(const(char)[] x) {
 	MySQLDateTime time;
 
 	time.year = x.parse!ushort;
-    x.skip('-');
-    time.month = x.parse!ubyte;
-    x.skip('-');
-    time.day = x.parse!ubyte;
+	x.skip('-');
+	time.month = x.parse!ubyte;
+	x.skip('-');
+	time.day = x.parse!ubyte;
 	if (x.length) {
 		x.skip(' ');
 		time.hour = x.parse!ubyte;

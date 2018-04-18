@@ -131,11 +131,7 @@ struct OutputPacket {
 		out_ = buffer_.ptr + 4;
 	}
 
-	void put(T)(T x) if (!isArray!T) {
-		put(offset_, x);
-	}
-
-	void put(T)(T x) if (isArray!T) {
+	pragma(inline, true) void put(T)(T x) {
 		put(offset_, x);
 	}
 
@@ -208,6 +204,7 @@ struct OutputPacket {
 	void reset() {
 		offset_ = 0;
 	}
+
 	void reserve(size_t size) {
 		(*buffer_).length = max((*buffer_).length, 4 + size);
 		out_ = buffer_.ptr + 4;
@@ -234,14 +231,14 @@ protected:
 	void grow(size_t offset, size_t size) {
 		auto requested = 4 + offset + size;
 		if (requested > buffer_.length) {
-			auto capacity = (*buffer_).capacity;
+			auto capacity = max(128, (*buffer_).capacity);
 			while (capacity < requested)
 				capacity <<= 1;
-			buffer_.length = requested;
+			buffer_.length = capacity;
 			out_ = buffer_.ptr + 4;
 		}
 	}
 	ubyte[]* buffer_;
 	ubyte* out_;
-	size_t offset_ = 0;
+	size_t offset_;
 }
