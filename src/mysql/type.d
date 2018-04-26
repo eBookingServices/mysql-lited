@@ -61,7 +61,7 @@ template isWritableDataMember(T, string Member) {
 	} else static if (is(typeof(__traits(getMember, T, Member)) == void)) {
 		enum isWritableDataMember = false;
 	} else static if (is(typeof(__traits(getMember, T, Member)) == enum)) {
-		enum isWritableDataMember = false;
+		enum isWritableDataMember = true;
 	} else static if (hasUDA!(__traits(getMember, T, Member), IgnoreAttribute)) {
 		enum isWritableDataMember = false;
 	} else static if (isArray!(typeof(__traits(getMember, T, Member))) && !is(typeof(typeof(__traits(getMember, T, Member)).init[0]) == ubyte) && !is(typeof(__traits(getMember, T, Member)) == string)) {
