@@ -227,7 +227,7 @@ struct MySQLValue {
 		(*cast(MySQLTime*)buffer_) = MySQLTime.from(value);
 	}
 
-	this(T)(T value) if (isSomeString!T) {
+	this(T)(T value) if (isSomeString!(OriginalType!T)) {
 		static assert(typeof(T.init[0]).sizeof == 1, format("Unsupported string type: %s", T.stringof));
 
 		type_ = ColumnTypes.MYSQL_TYPE_STRING;
@@ -1204,23 +1204,23 @@ void putValue(T)(ref OutputPacket packet, T value) if (isFloatingPoint!T) {
 	}
 }
 
-void putValueType(T)(ref OutputPacket packet, T value) if (isSomeString!T) {
+void putValueType(T)(ref OutputPacket packet, T value) if (isSomeString!(OriginalType!T)) {
 	packet.put!ubyte(ColumnTypes.MYSQL_TYPE_STRING);
 	packet.put!ubyte(0x80);
 }
 
-void putValue(T)(ref OutputPacket packet, T value) if (isSomeString!T) {
+void putValue(T)(ref OutputPacket packet, T value) if (isSomeString!(OriginalType!T)) {
 	ulong size = value.length * T.init[0].sizeof;
 	packet.putLenEnc(size);
 	packet.put(value);
 }
 
-void putValueType(T)(ref OutputPacket packet, T value) if (isArray!T && !isSomeString!T) {
+void putValueType(T)(ref OutputPacket packet, T value) if (isArray!T && !isSomeString!(OriginalType!T)) {
 	foreach(ref item; value)
 		putValueType(packet, item);
 }
 
-void putValue(T)(ref OutputPacket packet, T value) if (isArray!T && !isSomeString!T) {
+void putValue(T)(ref OutputPacket packet, T value) if (isArray!T && !isSomeString!(OriginalType!T)) {
 	foreach(ref item; value)
 		putValue(packet, item);
 }

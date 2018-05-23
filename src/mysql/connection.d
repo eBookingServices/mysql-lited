@@ -1295,7 +1295,7 @@ private auto copyUpToNext(ref Appender!(char[]) app, ref const(char)[] sql) {
 }
 
 private bool appendNextValue(T)(ref Appender!(char[]) app, ref const(char)[] sql, ref size_t indexArg, const(void)* arg) {
-	static if (isArray!T && !isSomeString!T) {
+	static if (isArray!T && !isSomeString!(OriginalType!T)) {
 		foreach (i, ref v; *cast(T*)arg) {
 			if (copyUpToNext(app, sql)) {
 				appendValue(app, v);
