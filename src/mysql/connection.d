@@ -871,12 +871,14 @@ private:
 			case ErrorCodes.ER_DUP_ENTRY_WITH_KEY_NAME:
 			case ErrorCodes.ER_DUP_ENTRY:
 				throw new MySQLDuplicateEntryException(info_.idup, File, Line);
+			case ErrorCodes.ER_DATA_TOO_LONG_FOR_COL:
+				throw new MySQLDataTooLongException(info_.idup, File, Line);
 			default:
 				version(development) {
 					// On dev show the query together with the error message
-					throw new MySQLErrorException(format("%s - %s", info_, sql_.data), File, Line);
+					throw new MySQLErrorException(format("[err:%s] %s - %s", status_.error, info_, sql_.data), File, Line);
 				} else {
-					throw new MySQLErrorException(info_.idup, File, Line);
+					throw new MySQLErrorException(format("[err:%s] %s", status_.error, info_), File, Line);
 				}
 			}
 		default:
