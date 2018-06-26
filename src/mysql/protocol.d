@@ -195,5 +195,6 @@ enum ErrorCodes : ushort {
 	ER_DUP_KEYNAME                  = 1061,
 	ER_DUP_ENTRY                    = 1062,
 	ER_DUP_ENTRY_WITH_KEY_NAME      = 1586,
+	ER_DEADLOCK_FOUND				= 1213,
 	ER_DATA_TOO_LONG_FOR_COL		= 1406,
 }

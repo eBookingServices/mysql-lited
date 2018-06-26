@@ -873,6 +873,8 @@ private:
 				throw new MySQLDuplicateEntryException(info_.idup, File, Line);
 			case ErrorCodes.ER_DATA_TOO_LONG_FOR_COL:
 				throw new MySQLDataTooLongException(info_.idup, File, Line);
+			case ErrorCodes.ER_DEADLOCK_FOUND:
+				throw new MySQLDeadlockFoundException(info_.idup, File, Line);
 			default:
 				version(development) {
 					// On dev show the query together with the error message
