@@ -259,7 +259,7 @@ struct Inserter(ConnectionType) {
 		}
 		values_.put(')');
 
-		if (values_.data.length > (128 << 10)) // todo: make parameter
+		if (values_.data.length > maxFlushSize_)
 			flush();
 
 		++rows_;
@@ -277,6 +277,14 @@ struct Inserter(ConnectionType) {
 
 	@property size_t flushes() const {
 		return flushes_;
+	}
+
+	@property void setMaxFlushSize(size_t size) {
+		maxFlushSize_ = size;
+	}
+
+	@property size_t maxFlushSize() const {
+		return maxFlushSize_;
 	}
 
 	private void reset(){
@@ -312,4 +320,5 @@ private:
 	size_t rows_;
 	string[] fieldsNames_;
 	size_t[] fieldsHash_;
+	size_t maxFlushSize_ = (128 << 10);
 }
