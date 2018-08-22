@@ -48,11 +48,9 @@ struct MySQLRow {
 		return names_;
 	}
 
-	@property ref auto opDispatch(string key, string File=__FILE__, size_t Line=__LINE__)() const {
+	@property ref auto opDispatch(string key)() const {
 		enum hash = hashOf(key);
-		if (auto index = find_(hash, key))
-			return opIndex(index - 1);
-		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set", File, Line);
+		return dispatchFast_(hash, key);
 	}
 
 	auto opSlice() const {
@@ -63,13 +61,13 @@ struct MySQLRow {
 		return values_[i..j];
 	}
 
-	ref auto opIndex(string File=__FILE__, size_t Line=__LINE__)(string key) const {
+	ref auto opIndex(string key) const {
 		if (auto index = find_(key.hashOf, key))
 			return values_[index - 1];
-		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set", File, Line);
+		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
 	}
 
-	ref auto opIndex(string File=__FILE__, size_t Line=__LINE__)(size_t index) const {
+	ref auto opIndex(size_t index) const {
 		return values_[index];
 	}
 
@@ -123,7 +121,7 @@ struct MySQLRow {
 		return result;
 	}
 
-	void toStruct(T, Strict strict = Strict.yesIgnoreNull, string File=__FILE__, size_t Line=__LINE__)(ref T x) if(is(Unqual!T == struct)) {
+	void toStruct(T, Strict strict = Strict.yesIgnoreNull)(ref T x) if(is(Unqual!T == struct)) {
 		static if (isTuple!(Unqual!T)) {
 			foreach(i, ref f; x.field) {
 				if (i < values_.length) {
@@ -135,21 +133,27 @@ struct MySQLRow {
 					}
 				}
 				else static if ((strict == Strict.yes) || (strict == Strict.yesIgnoreNull)) {
-					throw new MySQLErrorException("Column " ~ i ~ " is out of range for this result set", File, Line);
+					throw new MySQLErrorException("Column " ~ i ~ " is out of range for this result set");
 				}
 			}
 		} else {
-			structurize!(T, strict, null, File, Line)(x);
+			structurize!(T, strict, null)(x);
 		}
 	}
 
-	T toStruct(T, Strict strict = Strict.yesIgnoreNull, string File=__FILE__, size_t Line=__LINE__)() if (is(Unqual!T == struct)) {
+	T toStruct(T, Strict strict = Strict.yesIgnoreNull)() if (is(Unqual!T == struct)) {
 		T result;
-		toStruct!(T, strict, File, Line)(result);
+		toStruct!(T, strict)(result);
 		return result;
 	}
 
 package:
+	auto dispatchFast_(uint hash, string key) const {
+		if (auto index = find_(hash, key))
+			return opIndex(index - 1);
+		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
+	}
+
 	void header_(MySQLHeader header) {
 		auto headerLen = header.length;
 		auto idealLen = (headerLen + (headerLen >> 2));
@@ -214,7 +218,7 @@ package:
 	}
 
 private:
-	void structurize(T, Strict strict = Strict.yesIgnoreNull, string path = null, string File=__FILE__, size_t Line=__LINE__)(ref T result) {
+	void structurize(T, Strict strict = Strict.yesIgnoreNull, string path = null)(ref T result) {
 		enum unCamel = hasUDA!(T, UnCamelCaseAttribute);
 
 		foreach(member; __traits(allMembers, T)) {
@@ -236,9 +240,9 @@ private:
 				static if (! isValueType!MemberType) {
 					enum pathNew = pathMember ~ ".";
 					static if (hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
-						structurize!(MemberType, Strict.no, pathNew, File, Line)(__traits(getMember, result, member));
+						structurize!(MemberType, Strict.no, pathNew)(__traits(getMember, result, member));
 					} else {
-						structurize!(MemberType, strict, pathNew, File, Line)(__traits(getMember, result, member));
+						structurize!(MemberType, strict, pathNew)(__traits(getMember, result, member));
 					}
 				} else {
 					enum hash = pathMember.hashOf;
@@ -260,13 +264,7 @@ private:
 								continue;
 						}
 
-						try {
-							__traits(getMember, result, member) = pvalue.get!(Unqual!MemberType);
-						} catch(Exception e) {
-							e.file = File;
-							e.line = Line;
-							throw e;
-						}
+						__traits(getMember, result, member) = pvalue.get!(Unqual!MemberType);
 						continue;
 					}
 
@@ -276,7 +274,7 @@ private:
 						} else {
 							enum ColumnError = format("Column '%s' or '%s' was not found in this result set", pathMember, pathMember);
 						}
-						throw new MySQLErrorException(ColumnError, File, Line);
+						throw new MySQLErrorException(ColumnError);
 					}
 				}
 			}

@@ -235,9 +235,9 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		connect();
 	}
 
-	void use(string File=__FILE__, size_t Line=__LINE__)(const(char)[] db) {
+	void use(const(char)[] db) {
 		send(Commands.COM_INIT_DB, db);
-		eatStatus!(File, Line)(retrieve());
+		eatStatus(retrieve());
 
 		if ((caps_ & CapabilityFlags.CLIENT_SESSION_TRACK) == 0) {
 			schema_.length = db.length;
@@ -245,20 +245,20 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		}
 	}
 
-	void ping(string File=__FILE__, size_t Line=__LINE__)() {
+	void ping() {
 		send(Commands.COM_PING);
-		eatStatus!(File, Line)(retrieve());
+		eatStatus(retrieve());
 	}
 
-	void refresh(string File=__FILE__, size_t Line=__LINE__)() {
+	void refresh() {
 		send(Commands.COM_REFRESH);
-		eatStatus!(File, Line)(retrieve());
+		eatStatus(retrieve());
 	}
 
 	static if ((Options & ConnectionOptions.TextProtocol) == 0) {
-		void reset(string File=__FILE__, size_t Line=__LINE__)() {
+		void reset() {
 			send(Commands.COM_RESET_CONNECTION);
-			eatStatus!(File, Line)(retrieve());
+			eatStatus(retrieve());
 		}
 	}
 
@@ -277,13 +277,13 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		return settings_;
 	}
 
-	auto prepare(string File=__FILE__, size_t Line=__LINE__)(const(char)[] sql) {
+	auto prepare(const(char)[] sql) {
 		send(Commands.COM_STMT_PREPARE, sql);
 
 		auto answer = retrieve();
 
 		if (answer.peek!ubyte != StatusPackets.OK_Packet)
-			eatStatus!(File, Line)(answer);
+			eatStatus(answer);
 
 		answer.expect!ubyte(0);
 
@@ -311,55 +311,55 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		return PreparedStatement(id, params);
 	}
 
-	void execute(string File=__FILE__, size_t Line=__LINE__, Args...)(const(char)[] sql, Args args) {
+	void execute(Args...)(const(char)[] sql, Args args) {
 		static if (Options & ConnectionOptions.TextProtocol) {
-			query!(File, Line)(sql, args);
+			query(sql, args);
 		} else {
 			scope(failure) disconnect_();
 
-			auto id = prepare!(File, Line)(sql);
-			execute!(File, Line)(id, args);
+			auto id = prepare(sql);
+			execute(id, args);
 			close(id);
 		}
 	}
 
-	void set(T, string File=__FILE__, size_t Line=__LINE__)(const(char)[] variable, T value) {
-		query!(File, Line)("set session ?=?", MySQLFragment(variable), value);
+	void set(T)(const(char)[] variable, T value) {
+		query("set session ?=?", MySQLFragment(variable), value);
 	}
 
-	const(char)[] get(string File=__FILE__, size_t Line=__LINE__)(const(char)[] variable) {
+	const(char)[] get(const(char)[] variable) {
 		const(char)[] result;
-		query!(File, Line)("show session variables like ?", variable, (MySQLRow row) {
+		query("show session variables like ?", variable, (MySQLRow row) {
 			result = row[1].peek!(const(char)[]).dup;
 		});
 
 		return result;
 	}
 
-	void begin(string File=__FILE__, size_t Line=__LINE__)() {
+	void begin() {
 		if (inTransaction)
-			throw new MySQLErrorException("MySQL does not support nested transactions - commit or rollback before starting a new transaction", File, Line);
+			throw new MySQLErrorException("MySQL does not support nested transactions - commit or rollback before starting a new transaction");
 
-		query!(File, Line)("start transaction");
+		query("start transaction");
 
 		assert(inTransaction);
 	}
 
-	void commit(string File=__FILE__, size_t Line=__LINE__)() {
+	void commit() {
 		if (!inTransaction)
-			throw new MySQLErrorException("No active transaction", File, Line);
+			throw new MySQLErrorException("No active transaction");
 
-		query!(File, Line)("commit");
+		query("commit");
 
 		assert(!inTransaction);
 	}
 
-	void rollback(string File=__FILE__, size_t Line=__LINE__)() {
+	void rollback() {
 		if (connected) {
 			if ((status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS) == 0)
-				throw new MySQLErrorException("No active transaction", File, Line);
+				throw new MySQLErrorException("No active transaction");
 
-			query!(File, Line)("rollback");
+			query("rollback");
 
 			assert(!inTransaction);
 		}
@@ -369,7 +369,7 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		return connected && (status_.flags & StatusFlags.SERVER_STATUS_IN_TRANS);
 	}
 
-	void execute(string File=__FILE__, size_t Line=__LINE__, Args...)(PreparedStatement stmt, Args args) {
+	void execute(Args...)(PreparedStatement stmt, Args args) {
 		scope(failure) disconnect_();
 
 		ensureConnected();
@@ -390,7 +390,7 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 		enum argCount = shouldDiscard ? args.length : (args.length - 1);
 
 		if (!argCount && stmt.params)
-			throw new MySQLErrorException(format("Wrong number of parameters for query. Got 0 but expected %d.", stmt.params), File, Line);
+			throw new MySQLErrorException(format("Wrong number of parameters for query. Got 0 but expected %d.", stmt.params));
 
 		static if (argCount) {
 			enum NullsCapacity = 128; // must be power of 2
@@ -434,7 +434,7 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 			packet.put!ubyte(1);
 
 			if (indexArg != stmt.params)
-				throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", indexArg, stmt.params), File, Line);
+				throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", indexArg, stmt.params));
 
 			foreach (arg; args[0..argCount]) {
 				static if (is(typeof(arg) == enum)) {
@@ -460,10 +460,10 @@ struct Connection(SocketType, ConnectionOptions Options = ConnectionOptions.Defa
 
 		auto answer = retrieve();
 		if (isStatus(answer)) {
-			eatStatus!(File, Line)(answer);
+			eatStatus(answer);
 		} else {
 			static if (!shouldDiscard) {
-				resultSet!(File, Line)(answer, stmt.id, Commands.COM_STMT_EXECUTE, args[args.length - 1]);
+				resultSet(answer, stmt.id, Commands.COM_STMT_EXECUTE, args[args.length - 1]);
 			} else {
 				discardAll(answer, Commands.COM_STMT_EXECUTE);
 			}
@@ -556,7 +556,7 @@ private:
 			onDisconnect_(status_);
 	}
 
-	void query(string File, size_t Line, Args...)(const(char)[] sql, Args args) {
+	void query(Args...)(const(char)[] sql, Args args) {
 		scope(failure) disconnect_();
 
 		static if (args.length == 0) {
@@ -568,7 +568,7 @@ private:
 		enum argCount = shouldDiscard ? args.length : (args.length - 1);
 
 		static if (argCount || (Options & ConnectionOptions.TextProtocolCheckNoArgs)) {
-			auto querySQL = prepareSQL!(File, Line)(sql, args[0..argCount]);
+			auto querySQL = prepareSQL(sql, args[0..argCount]);
 		} else {
 			auto querySQL = sql;
 		}
@@ -576,17 +576,17 @@ private:
 		version(development) {
 			import std.stdio : stderr, writefln;
 			if (trace_)
-				stderr.writefln("%s:%s %s", File, Line, querySQL);
+				stderr.writefln("%s", querySQL);
 		}
 
 		send(Commands.COM_QUERY, querySQL);
 
 		auto answer = retrieve();
 		if (isStatus(answer)) {
-			eatStatus!(File, Line)(answer);
+			eatStatus(answer);
 		} else {
 			static if (!shouldDiscard) {
-				resultSetText!(File, Line)(answer, Commands.COM_QUERY, args[args.length - 1]);
+				resultSetText(answer, Commands.COM_QUERY, args[args.length - 1]);
 			} else {
 				discardAll(answer, Commands.COM_QUERY);
 			}
@@ -634,12 +634,12 @@ private:
 		}
 	}
 
-	void check(string File, size_t Line)(InputPacket packet, bool smallError = false) {
+	void check(InputPacket packet, bool smallError = false) {
 		auto id = packet.peek!ubyte;
 		switch (id) {
 		case StatusPackets.ERR_Packet:
 		case StatusPackets.OK_Packet:
-			eatStatus!(File, Line)(packet, smallError);
+			eatStatus(packet, smallError);
 			break;
 		default:
 			break;
@@ -652,8 +652,8 @@ private:
 		ubyte[4] header;
 		socket_.read(header);
 
-		auto len = header[0] | (header[1] << 8) | (header[2] << 16);
-		auto seq = header[3];
+		auto len = header.ptr[0] | (header.ptr[1] << 8) | (header.ptr[2] << 16);
+		auto seq = header.ptr[3];
 
 		if (seq != seq_)
 			throw new MySQLConnectionException("Out of order packet received");
@@ -672,7 +672,7 @@ private:
 	void eatHandshake(InputPacket packet) {
 		scope(failure) disconnect_();
 
-		check!(__FILE__, __LINE__)(packet, true);
+		check(packet, true);
 
 		server_.protocol = packet.eat!ubyte;
 		server_.versionString = packet.eat!(const(char)[])(packet.countUntil(0, true)).dup;
@@ -779,7 +779,7 @@ private:
 
 		socket_.write(reply.get());
 
-		eatStatus!(__FILE__, __LINE__)(retrieve());
+		eatStatus(retrieve());
 	}
 
 
@@ -802,7 +802,7 @@ private:
 	}
 
 
-	void eatStatus(string File, size_t Line)(InputPacket packet, bool smallError = false) {
+	void eatStatus(InputPacket packet, bool smallError = false) {
 		auto id = packet.eat!ubyte;
 
 		switch (id) {
@@ -868,17 +868,17 @@ private:
 			switch(status_.error) {
 			case ErrorCodes.ER_DUP_ENTRY_WITH_KEY_NAME:
 			case ErrorCodes.ER_DUP_ENTRY:
-				throw new MySQLDuplicateEntryException(info_.idup, File, Line);
+				throw new MySQLDuplicateEntryException(info_.idup);
 			case ErrorCodes.ER_DATA_TOO_LONG_FOR_COL:
-				throw new MySQLDataTooLongException(info_.idup, File, Line);
+				throw new MySQLDataTooLongException(info_.idup);
 			case ErrorCodes.ER_DEADLOCK_FOUND:
-				throw new MySQLDeadlockFoundException(info_.idup, File, Line);
+				throw new MySQLDeadlockFoundException(info_.idup);
 			default:
 				version(development) {
 					// On dev show the query together with the error message
-					throw new MySQLErrorException(format("[err:%s] %s - %s", status_.error, info_, sql_.data), File, Line);
+					throw new MySQLErrorException(format("[err:%s] %s - %s", status_.error, info_, sql_.data));
 				} else {
-					throw new MySQLErrorException(format("[err:%s] %s", status_.error, info_), File, Line);
+					throw new MySQLErrorException(format("[err:%s] %s", status_.error, info_));
 				}
 			}
 		default:
@@ -989,7 +989,7 @@ private:
 		assert(packet.empty);
 	}
 
-	void resultSet(string File=__FILE__, size_t Line=__LINE__, RowHandler)(InputPacket packet, uint stmt, Commands cmd, RowHandler handler) {
+	void resultSet(RowHandler)(InputPacket packet, uint stmt, Commands cmd, RowHandler handler) {
 		columns_.length = 0;
 
 		auto columns = cast(size_t)packet.eatLenEnc();
@@ -998,7 +998,7 @@ private:
 
 		auto status = retrieve();
 		if (status.peek!ubyte == StatusPackets.ERR_Packet)
-			eatStatus!(File, Line)(status);
+			eatStatus(status);
 
 		size_t index;
 		auto statusFlags = eatEOF(status);
@@ -1009,7 +1009,7 @@ private:
 
 				auto answer = retrieve();
 				if (answer.peek!ubyte == StatusPackets.ERR_Packet)
-					eatStatus!(File, Line)(answer);
+					eatStatus(answer);
 
 				auto row = answer.empty ? retrieve() : answer;
 				while (true) {
@@ -1059,7 +1059,7 @@ private:
 		assert(packet.empty);
 	}
 
-	void resultSetText(string File, size_t Line, RowHandler)(InputPacket packet, Commands cmd, RowHandler handler) {
+	void resultSetText(RowHandler)(InputPacket packet, Commands cmd, RowHandler handler) {
 		columns_.length = 0;
 
 		auto columns = cast(size_t)packet.eatLenEnc();
@@ -1075,7 +1075,7 @@ private:
 				eatEOF(row);
 				break;
 			} else if (row.peek!ubyte == StatusPackets.ERR_Packet) {
-				eatStatus!(File, Line)(row);
+				eatStatus(row);
 				break;
 			}
 
@@ -1129,8 +1129,7 @@ private:
 		return status_.flags;
 	}
 
-	auto prepareSQL(string File, size_t Line, Args...)(const(char)[] sql, Args args) {
-		auto estimated = sql.length;
+	auto estimateArgs(Args...)(ref size_t estimated, Args args) {
 		size_t argCount;
 
 		foreach(i, arg; args) {
@@ -1203,6 +1202,12 @@ private:
 				estimated += 6;
 			}
 		}
+		return argCount;
+	}
+
+	auto prepareSQL(Args...)(const(char)[] sql, Args args) {
+		auto estimated = sql.length;
+		auto argCount = estimateArgs(estimated, args);
 
 		sql_.clear;
 		sql_.reserve(max(8192, estimated));
@@ -1224,17 +1229,21 @@ private:
 		size_t indexArg;
 		foreach (i; 0..Args.length) {
 			if (!funcs[i](sql_, sql, indexArg, addrs[i]))
-				throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", argCount, indexArg), File, Line);
+				throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", argCount, indexArg));
 		}
 
+		finishCopy(sql_, sql, argCount, indexArg);
+
+		return sql_.data;
+	}
+
+	void finishCopy(ref Appender!(char[]) app, ref const(char)[] sql, size_t argCount, size_t indexArg) {
 		if (copyUpToNext(sql_, sql)) {
 			++indexArg;
 			while (copyUpToNext(sql_, sql))
 				++indexArg;
-			throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", argCount, indexArg), File, Line);
+			throw new MySQLErrorException(format("Wrong number of parameters for query. Got %d but expected %d.", argCount, indexArg));
 		}
-
-		return sql_.data;
 	}
 
 	SocketType socket_;
