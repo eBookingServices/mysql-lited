@@ -148,7 +148,7 @@ struct MySQLRow {
 	}
 
 package:
-	auto dispatchFast_(uint hash, string key) const {
+	ref auto dispatchFast_(uint hash, string key) const {
 		if (auto index = find_(hash, key))
 			return opIndex(index - 1);
 		throw new MySQLErrorException("Column '" ~ key ~ "' was not found in this result set");
