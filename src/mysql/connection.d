@@ -873,6 +873,8 @@ private:
 				throw new MySQLDataTooLongException(info_.idup);
 			case ErrorCodes.ER_DEADLOCK_FOUND:
 				throw new MySQLDeadlockFoundException(info_.idup);
+			case ErrorCodes.ER_TABLE_DOESNT_EXIST:
+				throw new MySQLTableDoesntExistException(info_.idup);
 			default:
 				version(development) {
 					// On dev show the query together with the error message

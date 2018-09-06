@@ -42,3 +42,9 @@ class MySQLDeadlockFoundException : MySQLErrorException {
 		super(msg, file, line);
 	}
 }
+
+class MySQLTableDoesntExistException : MySQLErrorException {
+	this(string msg, string file = __FILE__, size_t line = __LINE__) pure {
+		super(msg, file, line);
+	}
+}
