@@ -1,7 +1,9 @@
 module mysql.socket;
 
 import vibe.core.net;
+import vibe.core.stream;
 import vibe.stream.tls;
+import vibe.stream.wrapper;
 
 import mysql.ssl;
 
@@ -10,7 +12,11 @@ struct VibeSocket {
 		socket_ = connectTCP(cast(string)host, port);
 		socket_.keepAlive = true;
 		socket_.tcpNoDelay = true;
-		stream_ = socket_;
+		static if (is(StreamProxy)) {
+			stream_ = createProxyStream(socket_);
+		} else {
+			stream_ = socket_;
+		}
 	}
 
 	bool connected() inout {
@@ -95,10 +101,10 @@ struct VibeSocket {
 	}
 
 private:
-	import vibe.core.stream;
 	TCPConnection socket_;
-	static if (is(StreamProxy))
+	static if (is(StreamProxy)) {
 		StreamProxy stream_;
-	else
+	} else {
 		Stream stream_;
+	}
 }
