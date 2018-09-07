@@ -45,7 +45,7 @@ struct TableNameAttribute {const(char)[] name;}
 
 
 template isValueType(T) {
-	static if (is(Unqual!T == struct) && !is(Unqual!T == MySQLValue) && !is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration)) {
+	static if (is(Unqual!T == struct) && !isInstanceOf!(Nullable, T) && !is(Unqual!T == MySQLValue) && !is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration)) {
 		enum isValueType = false;
 	} else {
 		enum isValueType = true;
@@ -420,6 +420,12 @@ struct MySQLValue {
 		default:
 			throw new MySQLErrorException(format("Cannot convert '%s' from %s to %s", name_, columnTypeName(type_), T.stringof));
 		}
+	}
+
+	T get(T)() const if(isInstanceOf!(Nullable, T)) {
+		if (type_ == ColumnTypes.MYSQL_TYPE_NULL)
+			return T.init;
+		return T(get!(typeof(T.init.get)));
 	}
 
 	T peek(T)(lazy T def) const {
