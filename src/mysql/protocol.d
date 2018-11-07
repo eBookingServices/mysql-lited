@@ -48,6 +48,16 @@ enum StatusFlags : ushort {
 }
 
 
+enum SessionStateType : ubyte {
+	SESSION_TRACK_SYSTEM_VARIABLES,
+	SESSION_TRACK_SCHEMA,
+	SESSION_TRACK_STATE_CHANGE,
+	SESSION_TRACK_GTIDS,
+	SESSION_TRACK_TRANSACTION_CHARACTERISTICS,
+	SESSION_TRACK_TRANSACTION_STATE
+}
+
+
 enum StatusPackets : ubyte {
 	OK_Packet   = 0,
 	ERR_Packet  = 0xff,

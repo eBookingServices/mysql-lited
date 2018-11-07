@@ -819,10 +819,27 @@ private:
 
 			if (caps_ & CapabilityFlags.CLIENT_SESSION_TRACK) {
 				if (!packet.empty) {
-					info(packet.eat!(const(char)[])(cast(size_t)packet.eatLenEnc()));
+					info(packet.eat!(const(char)[])(packet.eatLenEnc()));
 
-					if (!packet.empty && (status_.flags & StatusFlags.SERVER_SESSION_STATE_CHANGED))
-						packet.skip(cast(size_t)packet.eatLenEnc());
+					if (status_.flags & StatusFlags.SERVER_SESSION_STATE_CHANGED) {
+						packet.skipLenEnc();
+						while (!packet.empty()) {
+							final switch (packet.eat!ubyte()) with (SessionStateType) {
+							case SESSION_TRACK_SCHEMA:
+								packet.skipLenEnc();
+								schema_.length = packet.eatLenEnc();
+								schema_[] = packet.eat!(const(char)[])(schema_.length);
+								break;
+							case SESSION_TRACK_SYSTEM_VARIABLES:
+							case SESSION_TRACK_GTIDS:
+							case SESSION_TRACK_STATE_CHANGE:
+							case SESSION_TRACK_TRANSACTION_STATE:
+							case SESSION_TRACK_TRANSACTION_CHARACTERISTICS:
+								packet.skip(packet.eatLenEnc());
+								break;
+							}
+						}
+					}
 				}
 			} else {
 				info(packet.eat!(const(char)[])(packet.remaining));
