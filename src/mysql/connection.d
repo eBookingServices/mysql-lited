@@ -4,7 +4,6 @@ module mysql.connection;
 import std.algorithm;
 import std.array;
 import std.conv : to;
-import std.regex : ctRegex, matchFirst;
 import std.string;
 import std.traits;
 import std.uni : sicmp;
@@ -845,7 +844,9 @@ private:
 				info(packet.eat!(const(char)[])(packet.remaining));
 			}
 
-			auto matches = matchFirst(info_, ctRegex!(`\smatched:\s*(\d+)\s+changed:\s*(\d+)`, `i`));
+			import std.regex : matchFirst, regex;
+            static matcher = regex(`\smatched:\s*(\d+)\s+changed:\s*(\d+)`, `i`);
+            auto matches = matchFirst(info_, matcher);
 			if (!matches.empty) {
 				status_.matched = matches[1].to!ulong;
 				status_.changed = matches[2].to!ulong;
