@@ -48,3 +48,9 @@ class MySQLTableDoesntExistException : MySQLErrorException {
 		super(msg, file, line);
 	}
 }
+
+class MySQLLockWaitTimeoutException : MySQLErrorException {
+	this(string msg, string file = __FILE__, size_t line = __LINE__) pure {
+		super(msg, file, line);
+	}
+}
