@@ -121,7 +121,7 @@ struct MySQLRow {
 		return result;
 	}
 
-	void toStruct(T, Strict strict = Strict.yesIgnoreNull)(ref T x) if(is(Unqual!T == struct)) {
+	void toStruct(T, Strict strict = Strict.yesIgnoreNull)(ref T x) if(is(Unqual!T == struct) && !is(T == Strict)) {
 		static if (isTuple!(Unqual!T)) {
 			foreach(i, ref f; x.field) {
 				if (i < values_.length) {
@@ -139,6 +139,10 @@ struct MySQLRow {
 		} else {
 			structurize!(T, strict, null)(x);
 		}
+	}
+
+	void toStruct(Strict strict = Strict.yesIgnoreNull, T)(ref T x) if (is(Unqual!T == struct)) {
+		toStruct!(T, strict)(x);
 	}
 
 	T toStruct(T, Strict strict = Strict.yesIgnoreNull)() if (is(Unqual!T == struct)) {
