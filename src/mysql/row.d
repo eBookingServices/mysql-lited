@@ -276,7 +276,7 @@ private:
 						static if (!unCamel || (pathMember == pathMemberAlt)) {
 							enum ColumnError = format("Column '%s' was not found in this result set", pathMember);
 						} else {
-							enum ColumnError = format("Column '%s' or '%s' was not found in this result set", pathMember, pathMember);
+							enum ColumnError = format("Column '%s' or '%s' was not found in this result set", pathMember, pathMemberAlt);
 						}
 						throw new MySQLErrorException(ColumnError);
 					}
