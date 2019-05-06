@@ -44,14 +44,15 @@ struct TableNameAttribute {const(char)[] name;}
 }
 
 
-template isValueType(T) {
-	static if (is(Unqual!T == struct) && !isInstanceOf!(Nullable, T) && !is(Unqual!T == MySQLValue) && !is(Unqual!T == Date) && !is(Unqual!T == DateTime) && !is(Unqual!T == SysTime) && !is(Unqual!T == Duration)) {
-		enum isValueType = false;
-	} else {
-		enum isValueType = true;
-	}
+template Unnull(U) {
+	alias impl(N : Nullable!T, T) = T;
+	alias impl(T) = T;
+	alias Unnull = impl!U;
 }
 
+alias Unboth(T) = Unqual!(Unnull!T);
+enum isSomeDuration(T) = is(Unboth!T == Date) || is(Unboth!T == DateTime) || is(Unboth!T == SysTime) || is(Unboth!T == Duration);
+enum isValueType(T) = isSomeDuration!(Unboth!T) || is(Unboth!T == MySQLValue) || (!is(Unboth!T == struct) && !is(Unboth!T == class));
 
 template isWritableDataMember(T, string Member) {
 	static if (is(TypeTuple!(__traits(getMember, T, Member)))) {
