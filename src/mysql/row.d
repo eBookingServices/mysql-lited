@@ -137,11 +137,11 @@ struct MySQLRow {
 				}
 			}
 		} else {
-			structurize!(T, strict, null)(x);
+			structurize!(strict, null)(x);
 		}
 	}
 
-	void toStruct(Strict strict = Strict.yesIgnoreNull, T)(ref T x) if (is(Unqual!T == struct)) {
+	void toStruct(Strict strict, T)(ref T x) if (is(Unqual!T == struct)) {
 		toStruct!(T, strict)(x);
 	}
 
@@ -222,7 +222,7 @@ package:
 	}
 
 private:
-	void structurize(T, Strict strict = Strict.yesIgnoreNull, string path = null)(ref T result) {
+	void structurize(Strict strict = Strict.yesIgnoreNull, string path = null, T)(ref T result) {
 		enum unCamel = hasUDA!(T, UnCamelCaseAttribute);
 
 		foreach(member; __traits(allMembers, T)) {
@@ -241,12 +241,14 @@ private:
 
 				alias MemberType = typeof(__traits(getMember, result, member));
 
-				static if (! isValueType!MemberType) {
+				static if (isPointer!MemberType && !isValueType!(PointerTarget!MemberType) || !isValueType!MemberType) {
 					enum pathNew = pathMember ~ ".";
-					static if (hasUDA!(__traits(getMember, result, member), OptionalAttribute)) {
-						structurize!(MemberType, Strict.no, pathNew)(__traits(getMember, result, member));
+					enum st = Select!(hasUDA!(__traits(getMember, result, member), OptionalAttribute), Strict.no, strict);
+					static if (isPointer!MemberType) {
+						if (__traits(getMember, result, member))
+							structurize!(st, pathNew)(*__traits(getMember, result, member));
 					} else {
-						structurize!(MemberType, strict, pathNew)(__traits(getMember, result, member));
+						structurize!(st, pathNew)(__traits(getMember, result, member));
 					}
 				} else {
 					enum hash = pathMember.hashOf;
