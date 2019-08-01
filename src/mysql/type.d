@@ -51,7 +51,7 @@ template Unnull(U) {
 }
 
 alias Unboth(T) = Unqual!(Unnull!T);
-enum isSomeDuration(T) = is(Unboth!T == Date) || is(Unboth!T == DateTime) || is(Unboth!T == SysTime) || is(Unboth!T == Duration);
+enum isSomeDuration(T) = is(Unboth!T == Date) || is(Unboth!T == DateTime) || is(Unboth!T == SysTime) || is(Unboth!T == Duration) || is(Unboth!T == TimeOfDay);
 enum isValueType(T) = isSomeDuration!(Unboth!T) || is(Unboth!T == MySQLValue) || (!is(Unboth!T == struct) && !is(Unboth!T == class));
 
 template isWritableDataMember(T, string Member) {
@@ -223,6 +223,8 @@ struct MySQLValue {
 	}
 
 	this(T)(T value) if (is(Unqual!T == Duration) || is(Unqual!T == TimeOfDay)) {
+		import std.stdio : stderr, writefln;
+		stderr.writefln("helooooo123!");
 		type_ = ColumnTypes.MYSQL_TYPE_TIME;
 		sign_ = 0x00;
 		(*cast(MySQLTime*)buffer_) = MySQLTime.from(value);
