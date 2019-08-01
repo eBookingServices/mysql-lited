@@ -51,7 +51,7 @@ template Unnull(U) {
 }
 
 alias Unboth(T) = Unqual!(Unnull!T);
-enum isSomeDuration(T) = is(Unboth!T == Date) || is(Unboth!T == DateTime) || is(Unboth!T == SysTime) || is(Unboth!T == Duration);
+enum isSomeDuration(T) = is(Unboth!T == Date) || is(Unboth!T == DateTime) || is(Unboth!T == SysTime) || is(Unboth!T == Duration) || is(Unboth!T == TimeOfDay);
 enum isValueType(T) = isSomeDuration!(Unboth!T) || is(Unboth!T == MySQLValue) || (!is(Unboth!T == struct) && !is(Unboth!T == class));
 
 template isWritableDataMember(T, string Member) {
