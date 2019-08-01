@@ -223,8 +223,6 @@ struct MySQLValue {
 	}
 
 	this(T)(T value) if (is(Unqual!T == Duration) || is(Unqual!T == TimeOfDay)) {
-		import std.stdio : stderr, writefln;
-		stderr.writefln("helooooo123!");
 		type_ = ColumnTypes.MYSQL_TYPE_TIME;
 		sign_ = 0x00;
 		(*cast(MySQLTime*)buffer_) = MySQLTime.from(value);
